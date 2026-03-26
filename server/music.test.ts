@@ -45,16 +45,44 @@ describe("music.getStyles", () => {
   });
 });
 
-describe("music.generate", () => {
+describe("music.generateLyria", () => {
   it("rejects unknown style IDs", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
 
     await expect(
-      caller.music.generate({
+      caller.music.generateLyria({
         styleId: "nonexistent",
         melodyDescription: "C4, D4, E4",
       })
     ).rejects.toThrow("Unknown style");
+  });
+});
+
+describe("music.generateMusicGen", () => {
+  it("rejects unknown style IDs", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.music.generateMusicGen({
+        audioUrl: "https://example.com/test.wav",
+        styleId: "nonexistent",
+        duration: 15,
+      })
+    ).rejects.toThrow("Unknown style");
+  });
+
+  it("validates duration range", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.music.generateMusicGen({
+        audioUrl: "https://example.com/test.wav",
+        styleId: "lofi",
+        duration: 3, // below min of 8
+      })
+    ).rejects.toThrow();
   });
 });

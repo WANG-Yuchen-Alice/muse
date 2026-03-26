@@ -1,13 +1,14 @@
 /**
  * Muse V2 — Input Page
  * Record a hum or play a 2-octave piano keyboard, then generate music
- * Now uses pitch detection to describe the melody for Lyria 3
+ * Captures audio blob for MusicGen + pitch detection text for Lyria 3
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Square, Piano, Wand2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
@@ -43,7 +44,6 @@ const NOTES = [
 const WHITE_KEYS = NOTES.filter((n) => !n.isBlack);
 const BLACK_KEYS = NOTES.filter((n) => n.isBlack);
 
-// Note name lookup from frequency
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 function freqToNoteName(freq: number): string {
@@ -56,7 +56,6 @@ function freqToNoteName(freq: number): string {
 
 type InputMode = "hum" | "piano";
 
-// Simple autocorrelation pitch detection
 function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
   const SIZE = buffer.length;
   const MAX_SAMPLES = Math.floor(SIZE / 2);
@@ -68,7 +67,7 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
     rms += buffer[i] * buffer[i];
   }
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return null; // too quiet
+  if (rms < 0.01) return null;
 
   const correlations = new Float32Array(MAX_SAMPLES);
   for (let offset = 0; offset < MAX_SAMPLES; offset++) {
@@ -97,24 +96,29 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Detected notes from hum
   const [detectedNotes, setDetectedNotes] = useState<string[]>([]);
-  // Played notes from piano
   const [playedNotes, setPlayedNotes] = useState<{ note: string; time: number }[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const pitchIntervalRef = useRef<number | null>(null);
 
   // Piano recording state
+  const pianoRecorderRef = useRef<MediaRecorder | null>(null);
+  const pianoDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const pianoChunksRef = useRef<Blob[]>([]);
   const [isPianoRecording, setIsPianoRecording] = useState(false);
   const [pianoRecordTime, setPianoRecordTime] = useState(0);
   const pianoTimerRef = useRef<number | null>(null);
   const pianoStartTimeRef = useRef<number>(0);
+
+  const uploadAudio = trpc.music.uploadAudio.useMutation();
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
@@ -135,6 +139,17 @@ export default function Home() {
       analyserRef.current = analyser;
 
       const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        setHasRecording(true);
+        stream.getTracks().forEach((tr) => tr.stop());
+        if (pitchIntervalRef.current) clearInterval(pitchIntervalRef.current);
+      };
       mediaRecorderRef.current = recorder;
       recorder.start();
 
@@ -146,7 +161,6 @@ export default function Home() {
       const notes: string[] = [];
       let lastNote = "";
 
-      // Pitch detection loop
       pitchIntervalRef.current = window.setInterval(() => {
         analyser.getFloatTimeDomainData(buffer);
         const freq = detectPitch(buffer, ctx.sampleRate);
@@ -163,11 +177,8 @@ export default function Home() {
       timerRef.current = window.setInterval(() => {
         setRecordingTime((t) => {
           if (t >= 10) {
-            // Auto-stop at 10 seconds
-            recorder.stop();
+            mediaRecorderRef.current?.stop();
             setIsRecording(false);
-            setHasRecording(true);
-            stream.getTracks().forEach((tr) => tr.stop());
             if (timerRef.current) clearInterval(timerRef.current);
             if (pitchIntervalRef.current) clearInterval(pitchIntervalRef.current);
             return 10;
@@ -175,12 +186,6 @@ export default function Home() {
           return t + 0.1;
         });
       }, 100);
-
-      recorder.onstop = () => {
-        setHasRecording(true);
-        stream.getTracks().forEach((tr) => tr.stop());
-        if (pitchIntervalRef.current) clearInterval(pitchIntervalRef.current);
-      };
     } catch {
       alert("Microphone access is required to record your hum.");
     }
@@ -205,10 +210,13 @@ export default function Home() {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
       osc.connect(gain);
       gain.connect(ctx.destination);
+      // Also connect to piano recording destination if recording
+      if (pianoDestRef.current) {
+        gain.connect(pianoDestRef.current);
+      }
       osc.start();
       osc.stop(ctx.currentTime + 0.8);
 
-      // Record the note if piano recording is active
       if (isPianoRecording) {
         const elapsed = (Date.now() - pianoStartTimeRef.current) / 1000;
         setPlayedNotes((prev) => [...prev, { note: noteName, time: elapsed }]);
@@ -217,8 +225,25 @@ export default function Home() {
     [getAudioCtx, isPianoRecording]
   );
 
-  // ---- Piano Recording ----
+  // ---- Piano Recording (captures actual audio for MusicGen) ----
   const startPianoRecording = useCallback(() => {
+    const ctx = getAudioCtx();
+    const dest = ctx.createMediaStreamDestination();
+    pianoDestRef.current = dest;
+    const recorder = new MediaRecorder(dest.stream, { mimeType: "audio/webm" });
+    pianoChunksRef.current = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) pianoChunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(pianoChunksRef.current, { type: "audio/webm" });
+      setAudioBlob(blob);
+      setHasRecording(true);
+      pianoDestRef.current = null;
+    };
+    pianoRecorderRef.current = recorder;
+    recorder.start();
+
     pianoStartTimeRef.current = Date.now();
     setIsPianoRecording(true);
     setPianoRecordTime(0);
@@ -226,23 +251,24 @@ export default function Home() {
     pianoTimerRef.current = window.setInterval(() => {
       setPianoRecordTime((t) => {
         if (t >= 10) {
+          pianoRecorderRef.current?.stop();
           setIsPianoRecording(false);
-          setHasRecording(true);
           if (pianoTimerRef.current) clearInterval(pianoTimerRef.current);
           return 10;
         }
         return t + 0.1;
       });
     }, 100);
-  }, []);
+  }, [getAudioCtx]);
 
   const stopPianoRecording = useCallback(() => {
+    pianoRecorderRef.current?.stop();
     setIsPianoRecording(false);
-    setHasRecording(true);
     if (pianoTimerRef.current) clearInterval(pianoTimerRef.current);
   }, []);
 
   const clearRecording = useCallback(() => {
+    setAudioBlob(null);
     setHasRecording(false);
     setRecordingTime(0);
     setPianoRecordTime(0);
@@ -250,29 +276,47 @@ export default function Home() {
     setPlayedNotes([]);
   }, []);
 
-  // ---- Build melody description and navigate ----
-  const handleGenerate = useCallback(() => {
+  // ---- Upload audio + navigate to results ----
+  const handleGenerate = useCallback(async () => {
+    if (!audioBlob) return;
     setIsUploading(true);
+    try {
+      // Upload audio blob for MusicGen
+      const buffer = await audioBlob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+      const { url: audioUrl } = await uploadAudio.mutateAsync({
+        audioBase64: base64,
+        mimeType: audioBlob.type,
+      });
 
-    let melodyDesc = "";
-    if (mode === "hum" && detectedNotes.length > 0) {
-      // Deduplicate consecutive same notes, keep sequence
-      const uniqueSeq = detectedNotes.filter((n, i) => i === 0 || n !== detectedNotes[i - 1]);
-      melodyDesc = `A hummed melody with the note sequence: ${uniqueSeq.join(", ")}. The melody has a ${
-        uniqueSeq.length <= 4 ? "simple and repetitive" : uniqueSeq.length <= 8 ? "moderate" : "complex and varied"
-      } pattern.`;
-    } else if (mode === "piano" && playedNotes.length > 0) {
-      const noteSeq = playedNotes.map((n) => n.note);
-      melodyDesc = `A piano melody with the note sequence: ${noteSeq.join(", ")}. The melody has a ${
-        noteSeq.length <= 4 ? "simple and repetitive" : noteSeq.length <= 8 ? "moderate" : "complex and varied"
-      } pattern, played at a ${noteSeq.length <= 6 ? "slow" : "moderate"} tempo.`;
+      // Build melody description for Lyria 3
+      let melodyDesc = "";
+      if (mode === "hum" && detectedNotes.length > 0) {
+        const uniqueSeq = detectedNotes.filter((n, i) => i === 0 || n !== detectedNotes[i - 1]);
+        melodyDesc = `A hummed melody with the note sequence: ${uniqueSeq.join(", ")}. The melody has a ${
+          uniqueSeq.length <= 4 ? "simple and repetitive" : uniqueSeq.length <= 8 ? "moderate" : "complex and varied"
+        } pattern.`;
+      } else if (mode === "piano" && playedNotes.length > 0) {
+        const noteSeq = playedNotes.map((n) => n.note);
+        melodyDesc = `A piano melody with the note sequence: ${noteSeq.join(", ")}. The melody has a ${
+          noteSeq.length <= 4 ? "simple and repetitive" : noteSeq.length <= 8 ? "moderate" : "complex and varied"
+        } pattern, played at a ${noteSeq.length <= 6 ? "slow" : "moderate"} tempo.`;
+      }
+
+      // Navigate with both audioUrl (for MusicGen) and melody description (for Lyria 3)
+      navigate(
+        `/results?audio=${encodeURIComponent(audioUrl)}&melody=${encodeURIComponent(melodyDesc)}`
+      );
+    } catch (err) {
+      console.error("Upload failed:", err);
+      alert("Failed to upload audio. Please try again.");
+    } finally {
+      setIsUploading(false);
     }
+  }, [audioBlob, uploadAudio, mode, detectedNotes, playedNotes, navigate]);
 
-    // Navigate to results with melody description
-    navigate(`/results?melody=${encodeURIComponent(melodyDesc)}`);
-  }, [mode, detectedNotes, playedNotes, navigate]);
-
-  // Cleanup
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -281,7 +325,6 @@ export default function Home() {
     };
   }, []);
 
-  const activeRecording = mode === "hum" ? isRecording : isPianoRecording;
   const currentNotes = mode === "hum" ? detectedNotes : playedNotes.map((n) => n.note);
 
   return (
@@ -299,7 +342,6 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-8">
-        {/* Title */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -317,10 +359,7 @@ export default function Home() {
         {/* Mode Toggle */}
         <div className="flex gap-2 p-1 rounded-full glass-panel">
           <button
-            onClick={() => {
-              setMode("hum");
-              clearRecording();
-            }}
+            onClick={() => { setMode("hum"); clearRecording(); }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
               mode === "hum"
                 ? "bg-primary text-primary-foreground"
@@ -331,10 +370,7 @@ export default function Home() {
             Hum
           </button>
           <button
-            onClick={() => {
-              setMode("piano");
-              clearRecording();
-            }}
+            onClick={() => { setMode("piano"); clearRecording(); }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
               mode === "piano"
                 ? "bg-primary text-primary-foreground"
@@ -356,7 +392,6 @@ export default function Home() {
               exit={{ opacity: 0, x: 20 }}
               className="flex flex-col items-center gap-6 w-full max-w-md"
             >
-              {/* Recording visualizer */}
               <div className="relative w-40 h-40 flex items-center justify-center">
                 {isRecording && (
                   <>
@@ -393,7 +428,6 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Timer */}
               <div className="text-center">
                 <span className="font-mono text-2xl text-foreground">
                   {recordingTime.toFixed(1)}s
@@ -416,9 +450,7 @@ export default function Home() {
               exit={{ opacity: 0, x: -20 }}
               className="flex flex-col items-center gap-6 w-full max-w-2xl"
             >
-              {/* Piano Keyboard */}
               <div className="relative select-none" style={{ height: 180 }}>
-                {/* White keys */}
                 <div className="flex">
                   {WHITE_KEYS.map((key) => (
                     <button
@@ -435,11 +467,7 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
-                {/* Black keys */}
-                <div
-                  className="absolute top-0 left-0 flex pointer-events-none"
-                  style={{ zIndex: 2 }}
-                >
+                <div className="absolute top-0 left-0 flex pointer-events-none" style={{ zIndex: 2 }}>
                   {WHITE_KEYS.map((key) => {
                     const blackKey = BLACK_KEYS.find((b) => {
                       const whiteIdx = NOTES.indexOf(key);
@@ -462,7 +490,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Piano record controls */}
               <div className="flex items-center gap-4">
                 {!isPianoRecording && !hasRecording && (
                   <Button onClick={startPianoRecording} variant="outline" className="gap-2">
@@ -477,9 +504,7 @@ export default function Home() {
                   </Button>
                 )}
                 {hasRecording && (
-                  <p className="text-green-400 text-sm">
-                    Piano melody captured! Ready to generate.
-                  </p>
+                  <p className="text-green-400 text-sm">Piano melody captured! Ready to generate.</p>
                 )}
               </div>
               {!isPianoRecording && !hasRecording && (
@@ -531,7 +556,7 @@ export default function Home() {
                 className="gap-2 gradient-cosmic text-background font-semibold px-8 h-12 rounded-full border-0 hover:opacity-90 transition-all"
               >
                 <Wand2 className="w-5 h-5" />
-                {isUploading ? "Preparing..." : "Generate Music"}
+                {isUploading ? "Uploading..." : "Generate Music"}
               </Button>
             </>
           )}

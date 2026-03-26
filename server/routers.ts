@@ -6,16 +6,16 @@ import { z } from "zod";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { GoogleGenAI } from "@google/genai";
+import axios from "axios";
 
 const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY ?? "";
+const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY ?? "";
 
 const genai = new GoogleGenAI({ apiKey: GOOGLE_AI_API_KEY });
 
-/**
- * Generate music using Lyria 3 Clip (30s, 48kHz stereo)
- * Since Lyria 3 only accepts text prompts (no audio input),
- * we craft a detailed prompt combining the style with any melody description.
- */
+// ============================================================
+// Lyria 3 Clip — text prompt only, 30s, 48kHz stereo
+// ============================================================
 async function generateWithLyria3(prompt: string): Promise<{ audioData: Buffer; caption: string }> {
   const response = await genai.models.generateContent({
     model: "lyria-3-clip-preview",
@@ -44,29 +44,92 @@ async function generateWithLyria3(prompt: string): Promise<{ audioData: Buffer; 
   return { audioData, caption };
 }
 
+// ============================================================
+// MusicGen (Replicate) — melody-conditioned, audio input
+// ============================================================
+async function generateWithMusicGen(
+  audioUrl: string,
+  prompt: string,
+  duration: number = 15
+): Promise<{ audioUrl: string }> {
+  // Create prediction
+  const createRes = await axios.post(
+    "https://api.replicate.com/v1/predictions",
+    {
+      version: "671ac645ce5e552cc63a54a2bbff63fcf798043ac68f86b6588f3975a0eff4a1",
+      input: {
+        model_version: "stereo-melody-large",
+        prompt,
+        input_audio: audioUrl,
+        duration,
+        output_format: "mp3",
+        normalization_strategy: "loudness",
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${REPLICATE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const predictionId = createRes.data.id;
+
+  // Poll for completion (max 120s)
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const pollRes = await axios.get(
+      `https://api.replicate.com/v1/predictions/${predictionId}`,
+      { headers: { Authorization: `Bearer ${REPLICATE_API_KEY}` } }
+    );
+    const status = pollRes.data.status;
+    if (status === "succeeded") {
+      const output = pollRes.data.output;
+      return { audioUrl: typeof output === "string" ? output : output };
+    }
+    if (status === "failed" || status === "canceled") {
+      throw new Error(`MusicGen prediction ${status}: ${pollRes.data.error ?? "unknown error"}`);
+    }
+  }
+  throw new Error("MusicGen prediction timed out after 120s");
+}
+
 const STYLES = [
   {
     id: "lofi",
     name: "Lo-fi Chill",
-    prompt: "Lo-fi chill hip hop beat with warm vinyl crackle, mellow piano chords, soft brushed drums, and a gentle bass line. Cozy rainy day atmosphere, mellow and deeply relaxing. Instrumental only, no vocals.",
+    lyria_prompt:
+      "Lo-fi chill hip hop beat with warm vinyl crackle, mellow piano chords, soft brushed drums, and a gentle bass line. Cozy rainy day atmosphere, mellow and deeply relaxing. Instrumental only, no vocals.",
+    musicgen_prompt:
+      "lo-fi chill hip hop beat, warm vinyl crackle, mellow piano, soft brushed drums, gentle bass, cozy rainy day, relaxing",
     color: "#FF6B9D",
   },
   {
     id: "cinematic",
     name: "Cinematic Epic",
-    prompt: "Epic cinematic orchestral piece with soaring strings, powerful brass, and thundering timpani. Starts quiet with a solo melody, builds to a massive crescendo with full orchestra. Dramatic and emotional film score. Instrumental only, no vocals.",
+    lyria_prompt:
+      "Epic cinematic orchestral piece with soaring strings, powerful brass, and thundering timpani. Starts quiet with a solo melody, builds to a massive crescendo with full orchestra. Dramatic and emotional film score. Instrumental only, no vocals.",
+    musicgen_prompt:
+      "epic cinematic orchestral, soaring strings, powerful brass, thundering timpani, dramatic crescendo, emotional film score",
     color: "#00E5FF",
   },
   {
     id: "jazz",
     name: "Smooth Jazz",
-    prompt: "Smooth jazz piece with a warm saxophone melody over gentle piano comping, walking bass line, and brushed drums. Relaxed swing feel, late-night jazz club atmosphere. Sophisticated and warm. Instrumental only, no vocals.",
+    lyria_prompt:
+      "Smooth jazz piece with a warm saxophone melody over gentle piano comping, walking bass line, and brushed drums. Relaxed swing feel, late-night jazz club atmosphere. Sophisticated and warm. Instrumental only, no vocals.",
+    musicgen_prompt:
+      "smooth jazz, warm saxophone melody, gentle piano, walking bass, brushed drums, relaxed swing, late-night jazz club",
     color: "#FFB800",
   },
   {
     id: "electronic",
     name: "Ambient Electronic",
-    prompt: "Ambient electronic piece with dreamy synthesizers, atmospheric pads, subtle arpeggios, and ethereal textures. Floating deep space vibes, meditative and immersive. Instrumental only, no vocals.",
+    lyria_prompt:
+      "Ambient electronic piece with dreamy synthesizers, atmospheric pads, subtle arpeggios, and ethereal textures. Floating deep space vibes, meditative and immersive. Instrumental only, no vocals.",
+    musicgen_prompt:
+      "ambient electronic, dreamy synthesizers, atmospheric pads, subtle arpeggios, ethereal textures, deep space, meditative",
     color: "#A78BFA",
   },
 ];
@@ -88,7 +151,7 @@ export const appRouter = router({
       return STYLES.map((s) => ({ id: s.id, name: s.name, color: s.color }));
     }),
 
-    /** Upload recorded audio (base64) and return a URL */
+    /** Upload recorded audio (base64) and return a URL for MusicGen */
     uploadAudio: publicProcedure
       .input(z.object({ audioBase64: z.string(), mimeType: z.string().default("audio/webm") }))
       .mutation(async ({ input }) => {
@@ -99,11 +162,67 @@ export const appRouter = router({
         return { url };
       }),
 
-    /** 
-     * Generate music using Lyria 3 Clip.
-     * Takes a melody description (extracted from user's hum/piano on the frontend)
-     * and generates a 30-second track in the specified style.
-     */
+    /** Generate with Lyria 3 Clip (text prompt, no audio input) */
+    generateLyria: publicProcedure
+      .input(
+        z.object({
+          melodyDescription: z.string().optional(),
+          styleId: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const style = STYLES.find((s) => s.id === input.styleId);
+        if (!style) throw new Error(`Unknown style: ${input.styleId}`);
+
+        let fullPrompt = style.lyria_prompt;
+        if (input.melodyDescription && input.melodyDescription.trim()) {
+          fullPrompt = `${style.lyria_prompt} The melody should follow this pattern: ${input.melodyDescription}`;
+        }
+
+        const { audioData, caption } = await generateWithLyria3(fullPrompt);
+        const key = `generated/lyria/${nanoid()}.mp3`;
+        const { url } = await storagePut(key, audioData, "audio/mpeg");
+
+        return {
+          model: "lyria3" as const,
+          styleId: style.id,
+          styleName: style.name,
+          color: style.color,
+          audioUrl: url,
+          caption,
+        };
+      }),
+
+    /** Generate with MusicGen (melody-conditioned, needs audio URL) */
+    generateMusicGen: publicProcedure
+      .input(
+        z.object({
+          audioUrl: z.string(),
+          styleId: z.string(),
+          duration: z.number().min(8).max(30).default(15),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const style = STYLES.find((s) => s.id === input.styleId);
+        if (!style) throw new Error(`Unknown style: ${input.styleId}`);
+
+        const result = await generateWithMusicGen(
+          input.audioUrl,
+          style.musicgen_prompt,
+          input.duration
+        );
+
+        return {
+          model: "musicgen" as const,
+          styleId: style.id,
+          styleName: style.name,
+          color: style.color,
+          audioUrl: result.audioUrl,
+          caption: "",
+        };
+      }),
+
+    /** Legacy generate route (kept for backward compat, uses Lyria 3) */
     generate: publicProcedure
       .input(
         z.object({
@@ -115,15 +234,12 @@ export const appRouter = router({
         const style = STYLES.find((s) => s.id === input.styleId);
         if (!style) throw new Error(`Unknown style: ${input.styleId}`);
 
-        // Build the prompt: combine style with melody description if provided
-        let fullPrompt = style.prompt;
+        let fullPrompt = style.lyria_prompt;
         if (input.melodyDescription && input.melodyDescription.trim()) {
-          fullPrompt = `${style.prompt} The melody should follow this pattern: ${input.melodyDescription}`;
+          fullPrompt = `${style.lyria_prompt} The melody should follow this pattern: ${input.melodyDescription}`;
         }
 
         const { audioData, caption } = await generateWithLyria3(fullPrompt);
-
-        // Upload the generated audio to S3
         const key = `generated/${nanoid()}.mp3`;
         const { url } = await storagePut(key, audioData, "audio/mpeg");
 

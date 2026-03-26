@@ -13,3 +13,7 @@
 - [x] Test Lyria 3 Clip API call
 - [x] Upgrade backend to use Lyria 3 Clip instead of MusicGen
 - [x] Add pitch detection to convert hum to text prompt for Lyria 3
+- [x] Restore MusicGen generation route alongside Lyria 3
+- [x] Build side-by-side Results page (MusicGen left, Lyria 3 right)
+- [x] Re-upload audio for MusicGen (needs actual audio URL, not just text description)
+- [x] Update tests for dual-model generation
