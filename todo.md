@@ -1,9 +1,8 @@
-# Muse Improvements Todo
+# Muse V2 Prototype TODO
 
-- [ ] Research Suno API / music generation APIs for theme preview samples
-- [ ] Enable step-back navigation (click completed steps to go back)
-- [ ] Upgrade to real instrument samples (Tone.js Sampler with tonejs-instruments)
-- [ ] Add more drum pattern options (2-3 new patterns)
-- [ ] Generate/integrate high-quality theme preview music for 5 themes
-- [ ] Test full flow end-to-end
+- [x] Upgrade to web-db-user for backend API proxy (need server to proxy Replicate calls)
+- [x] Build Page 1: Input page with hum recording + 2-octave piano keyboard
+- [x] Build Page 2: Results page showing generated music in 3-4 styles
+- [x] Wire MusicGen melody API through backend
+- [x] Test end-to-end flow
 - [ ] Save checkpoint and deliver

@@ -1,425 +1,441 @@
-/*
- * Muse Landing Page — "Liquid Cosmos" Design
- * Deep dark void background, bioluminescent accents, frosted glass panels
- * Font: Space Grotesk (display) + DM Sans (body)
- * 
- * Messaging: "Create your first BGM" — feelings-first, hands-on, no knowledge required
+/**
+ * Muse V2 — Input Page
+ * Record a hum or play a 2-octave piano keyboard, then generate music
  */
-import { motion, type Easing } from 'framer-motion';
-import { useLocation } from 'wouter';
-import { Music, Sparkles, Layers, Share2, ArrowRight, Palette, PenTool, Drum, Guitar, Wand2, Play, Heart, Headphones, Zap } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
+import { Mic, Square, Piano, Wand2, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
-const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/hero-cosmic-bg-dQF7KEjpdvbhp2dhHCd8oj.webp';
-const LOGO = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp';
+const LOGO =
+  "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
 
-const steps = [
-  { icon: Palette, title: 'Set the Mood', desc: 'How are you feeling? Pick a vibe — Ocean Sunset, Bamboo Forest, City Neon. Your mood becomes your musical palette.', color: '#00E5FF' },
-  { icon: PenTool, title: 'Draw Your Melody', desc: 'No notes to read. Just draw a line — up for higher, down for lower. Hear it play as your finger moves.', color: '#FF006E' },
-  { icon: Drum, title: 'Add a Beat', desc: 'Pick a rhythm that feels right, or skip drums entirely. Your music, your rules.', color: '#FFB800' },
-  { icon: Guitar, title: 'Layer Instruments', desc: 'Toggle on strings, piano, guitar — hear them blend in real-time. Drag to adjust the mix.', color: '#2DD4BF' },
-  { icon: Wand2, title: 'AI Polishes It', desc: 'One tap: AI adds a bass line, smooths transitions, and turns your sketch into a finished track.', color: '#A78BFA' },
-  { icon: Share2, title: 'Play & Share', desc: 'Listen to YOUR composition. Watch the layers animate. Share it with the world.', color: '#FF7E7E' },
+// 2 octaves: C4 to B5
+const NOTES = [
+  { note: "C4", freq: 261.63, isBlack: false },
+  { note: "C#4", freq: 277.18, isBlack: true },
+  { note: "D4", freq: 293.66, isBlack: false },
+  { note: "D#4", freq: 311.13, isBlack: true },
+  { note: "E4", freq: 329.63, isBlack: false },
+  { note: "F4", freq: 349.23, isBlack: false },
+  { note: "F#4", freq: 369.99, isBlack: true },
+  { note: "G4", freq: 392.0, isBlack: false },
+  { note: "G#4", freq: 415.3, isBlack: true },
+  { note: "A4", freq: 440.0, isBlack: false },
+  { note: "A#4", freq: 466.16, isBlack: true },
+  { note: "B4", freq: 493.88, isBlack: false },
+  { note: "C5", freq: 523.25, isBlack: false },
+  { note: "C#5", freq: 554.37, isBlack: true },
+  { note: "D5", freq: 587.33, isBlack: false },
+  { note: "D#5", freq: 622.25, isBlack: true },
+  { note: "E5", freq: 659.25, isBlack: false },
+  { note: "F5", freq: 698.46, isBlack: false },
+  { note: "F#5", freq: 739.99, isBlack: true },
+  { note: "G5", freq: 783.99, isBlack: false },
+  { note: "G#5", freq: 830.61, isBlack: true },
+  { note: "A5", freq: 880.0, isBlack: false },
+  { note: "A#5", freq: 932.33, isBlack: true },
+  { note: "B5", freq: 987.77, isBlack: false },
 ];
 
-const EASE_OUT: Easing = "easeOut";
+const WHITE_KEYS = NOTES.filter((n) => !n.isBlack);
+const BLACK_KEYS = NOTES.filter((n) => n.isBlack);
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: EASE_OUT },
-  }),
-};
+type InputMode = "hum" | "piano";
 
 export default function Home() {
   const [, navigate] = useLocation();
+  const [mode, setMode] = useState<InputMode>("hum");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [hasRecording, setHasRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Piano recording state
+  const pianoRecorderRef = useRef<MediaRecorder | null>(null);
+  const pianoDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const pianoChunksRef = useRef<Blob[]>([]);
+  const [isPianoRecording, setIsPianoRecording] = useState(false);
+  const [pianoRecordTime, setPianoRecordTime] = useState(0);
+  const pianoTimerRef = useRef<number | null>(null);
+
+  const uploadAudio = trpc.music.uploadAudio.useMutation();
+
+  const getAudioCtx = useCallback(() => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContext();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  // ---- Hum Recording ----
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        setHasRecording(true);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = window.setInterval(() => {
+        setRecordingTime((t) => {
+          if (t >= 10) {
+            mediaRecorderRef.current?.stop();
+            setIsRecording(false);
+            if (timerRef.current) clearInterval(timerRef.current);
+            return 10;
+          }
+          return t + 0.1;
+        });
+      }, 100);
+    } catch {
+      alert("Microphone access is required to record your hum.");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+  }, []);
+
+  // ---- Piano Playback ----
+  const playNote = useCallback(
+    (freq: number) => {
+      const ctx = getAudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      // Also connect to piano recording destination if recording
+      if (pianoDestRef.current) {
+        gain.connect(pianoDestRef.current);
+      }
+      osc.start();
+      osc.stop(ctx.currentTime + 0.8);
+    },
+    [getAudioCtx]
+  );
+
+  // ---- Piano Recording ----
+  const startPianoRecording = useCallback(() => {
+    const ctx = getAudioCtx();
+    const dest = ctx.createMediaStreamDestination();
+    pianoDestRef.current = dest;
+    const recorder = new MediaRecorder(dest.stream, { mimeType: "audio/webm" });
+    pianoChunksRef.current = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) pianoChunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(pianoChunksRef.current, { type: "audio/webm" });
+      setAudioBlob(blob);
+      setHasRecording(true);
+      pianoDestRef.current = null;
+    };
+    pianoRecorderRef.current = recorder;
+    recorder.start();
+    setIsPianoRecording(true);
+    setPianoRecordTime(0);
+    pianoTimerRef.current = window.setInterval(() => {
+      setPianoRecordTime((t) => {
+        if (t >= 10) {
+          pianoRecorderRef.current?.stop();
+          setIsPianoRecording(false);
+          if (pianoTimerRef.current) clearInterval(pianoTimerRef.current);
+          return 10;
+        }
+        return t + 0.1;
+      });
+    }, 100);
+  }, [getAudioCtx]);
+
+  const stopPianoRecording = useCallback(() => {
+    pianoRecorderRef.current?.stop();
+    setIsPianoRecording(false);
+    if (pianoTimerRef.current) clearInterval(pianoTimerRef.current);
+  }, []);
+
+  const clearRecording = useCallback(() => {
+    setAudioBlob(null);
+    setHasRecording(false);
+    setRecordingTime(0);
+    setPianoRecordTime(0);
+  }, []);
+
+  // ---- Generate ----
+  const handleGenerate = useCallback(async () => {
+    if (!audioBlob) return;
+    setIsUploading(true);
+    try {
+      // Convert blob to base64
+      const buffer = await audioBlob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+      const { url } = await uploadAudio.mutateAsync({
+        audioBase64: base64,
+        mimeType: audioBlob.type,
+      });
+      // Navigate to results page with the audio URL
+      navigate(`/results?audio=${encodeURIComponent(url)}`);
+    } catch (err) {
+      console.error("Upload failed:", err);
+      alert("Failed to upload audio. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  }, [audioBlob, uploadAudio, navigate]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (pianoTimerRef.current) clearInterval(pianoTimerRef.current);
+    };
+  }, []);
+
+  const activeTime = mode === "hum" ? recordingTime : pianoRecordTime;
+  const activeRecording = mode === "hum" ? isRecording : isPianoRecording;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-panel">
-        <div className="container flex items-center justify-between h-16">
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <header className="border-b border-border/30 bg-void">
+        <div className="container flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <img src={LOGO} alt="Muse" className="w-8 h-8" />
             <span className="font-display text-xl font-bold text-foreground">Muse</span>
+            <span className="text-xs text-muted-foreground ml-1">V2</span>
           </div>
-          <Button
-            onClick={() => navigate('/compose')}
-            className="gradient-cosmic text-background font-semibold px-6 h-9 rounded-full border-0 hover:opacity-90 transition-opacity"
-          >
-            Create Now
-          </Button>
         </div>
-      </nav>
+      </header>
 
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0">
-          <img
-            src={HERO_BG}
-            alt=""
-            className="w-full h-full object-cover opacity-60"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/20 to-background" />
-        </div>
-
-        {/* Floating particles effect */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                width: Math.random() * 4 + 2,
-                height: Math.random() * 4 + 2,
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                background: ['#00E5FF', '#FF006E', '#FFB800'][i % 3],
-                opacity: 0.4,
-              }}
-              animate={{
-                y: [0, -30, 0],
-                opacity: [0.2, 0.6, 0.2],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 4,
-                repeat: Infinity,
-                delay: Math.random() * 3,
-                ease: 'easeInOut',
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Hero Content */}
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto pt-20">
-          <motion.h1
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
-            className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-[1.05] mb-6"
-          >
-            <span className="text-foreground">Create Your</span>
-            <br />
-            <span className="gradient-cosmic-text">First BGM</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-            className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-4 leading-relaxed"
-          >
-            Express your feelings with notes and create your very own background music.
-          </motion.p>
-
-          <motion.p
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.45, ease: "easeOut" }}
-            className="text-base sm:text-lg max-w-xl mx-auto mb-10 leading-relaxed"
-            style={{ color: '#00E5FF' }}
-          >
-            With Muse, your music tutor — no knowledge required, just your feelings and mood.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
-          >
-            <Button
-              onClick={() => navigate('/compose')}
-              size="lg"
-              className="gradient-cosmic text-background font-semibold px-8 h-14 rounded-full border-0 text-lg hover:opacity-90 transition-all hover:scale-105 glow-cyan"
-            >
-              <Play className="w-5 h-5 mr-2" />
-              Start Creating — It's Free
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="rounded-full px-8 h-12 border-border/50 text-foreground hover:bg-white/5 text-base"
-              onClick={() => {
-                document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-            >
-              See How It Works
-            </Button>
-          </motion.div>
-
-          {/* Taglines */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 1 }}
-            className="mt-16 flex items-center justify-center gap-6 sm:gap-12"
-          >
-            {[
-              { label: 'No Music Knowledge', icon: Heart, color: '#FF006E' },
-              { label: '2 Minutes to Create', icon: Zap, color: '#FFB800' },
-              { label: '"I Made This!"', icon: Headphones, color: '#00E5FF' },
-            ].map((stat) => (
-              <div key={stat.label} className="flex items-center gap-2">
-                <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
-                <span className="text-xs sm:text-sm text-muted-foreground">{stat.label}</span>
-              </div>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* Scroll indicator */}
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-8">
+        {/* Title */}
         <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
         >
-          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1.5">
-            <motion.div
-              className="w-1.5 h-1.5 rounded-full bg-primary"
-              animate={{ y: [0, 12, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          </div>
+          <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-3">
+            <span className="gradient-cosmic-text">Hum or Play</span>
+          </h1>
+          <p className="text-muted-foreground text-base sm:text-lg max-w-md mx-auto">
+            Give us a short melody (up to 10 seconds) and we'll turn it into polished music in
+            multiple styles.
+          </p>
         </motion.div>
-      </section>
 
-      {/* "Why Muse?" — Emotional hook */}
-      <section className="py-20 sm:py-28 relative">
-        <div className="container max-w-3xl mx-auto text-center">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-100px' }}
+        {/* Mode Toggle */}
+        <div className="flex gap-2 p-1 rounded-full glass-panel">
+          <button
+            onClick={() => { setMode("hum"); clearRecording(); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+              mode === "hum"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <motion.p variants={fadeUp} custom={0} className="text-lg sm:text-xl text-muted-foreground leading-relaxed mb-8">
-              Ever had a melody stuck in your head but no way to get it out?
-            </motion.p>
-            <motion.p variants={fadeUp} custom={1} className="text-lg sm:text-xl text-muted-foreground leading-relaxed mb-8">
-              Ever wished you could turn a <em>feeling</em> into a song?
-            </motion.p>
-            <motion.h2 variants={fadeUp} custom={2} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold">
-              Muse turns your <span className="gradient-cosmic-text">emotions into music</span>
-            </motion.h2>
-            <motion.p variants={fadeUp} custom={3} className="text-muted-foreground text-base mt-6 max-w-lg mx-auto">
-              No sheet music. No complex software. Just pick a mood, draw a line, and hear your feelings come alive — layer by layer.
-            </motion.p>
-          </motion.div>
+            <Mic className="w-4 h-4" />
+            Hum
+          </button>
+          <button
+            onClick={() => { setMode("piano"); clearRecording(); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+              mode === "piano"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Piano className="w-4 h-4" />
+            Piano
+          </button>
         </div>
-      </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-24 sm:py-32 relative">
-        <div className="container">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-100px' }}
-            className="text-center mb-16"
-          >
-            <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 glass-panel rounded-full px-4 py-2 mb-6">
-              <Layers className="w-4 h-4" style={{ color: '#00E5FF' }} />
-              <span className="text-sm text-muted-foreground">6 Simple Steps</span>
-            </motion.div>
-            <motion.h2 variants={fadeUp} custom={1} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-              From Feeling to <span className="gradient-cosmic-text">Finished Track</span>
-            </motion.h2>
-            <motion.p variants={fadeUp} custom={2} className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Muse guides you step by step. Each layer adds depth. You make every creative choice.
-            </motion.p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {steps.map((step, i) => (
-              <motion.div
-                key={step.title}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: '-50px' }}
-                variants={fadeUp}
-                custom={i}
-                className="glass-panel rounded-2xl p-6 group hover:border-white/15 transition-all duration-500"
-              >
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-transform duration-500 group-hover:scale-110"
-                  style={{ background: `${step.color}15`, color: step.color }}
-                >
-                  <step.icon className="w-6 h-6" />
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-mono text-muted-foreground">0{i + 1}</span>
-                  <h3 className="font-display text-lg font-semibold text-foreground">{step.title}</h3>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* What Makes Muse Different */}
-      <section className="py-24 sm:py-32 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-void-light/30 to-background" />
-        <div className="container relative">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-100px' }}
-            className="max-w-4xl mx-auto"
-          >
-            <motion.div variants={fadeUp} custom={0} className="text-center mb-16">
-              <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-                Why Muse Feels <span className="gradient-cosmic-text">Different</span>
-              </h2>
-              <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-                Other tools make music for you or overwhelm you. Muse is the sweet spot.
-              </p>
-            </motion.div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  title: 'AI Generators',
-                  subtitle: 'Suno, Udio',
-                  problem: 'Type a prompt, get a song. You never touch the music.',
-                  verdict: 'You\'re a listener',
-                  color: '#FF006E',
-                },
-                {
-                  title: 'Muse',
-                  subtitle: 'Your Music Tutor',
-                  problem: 'You choose the mood, draw the melody, pick the instruments. AI helps you finish.',
-                  verdict: 'You\'re the creator',
-                  color: '#00E5FF',
-                  highlighted: true,
-                },
-                {
-                  title: 'DAWs',
-                  subtitle: 'GarageBand, FL Studio',
-                  problem: 'Blank timeline, 100+ buttons. Most people quit before finishing a track.',
-                  verdict: 'You\'re overwhelmed',
-                  color: '#FFB800',
-                },
-              ].map((item, i) => (
-                <motion.div
-                  key={item.title}
-                  variants={fadeUp}
-                  custom={i + 1}
-                  className={`rounded-2xl p-6 text-center ${
-                    item.highlighted
-                      ? 'glass-panel border-primary/30 glow-cyan'
-                      : 'glass-panel'
+        {/* Input Area */}
+        <AnimatePresence mode="wait">
+          {mode === "hum" ? (
+            <motion.div
+              key="hum"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="flex flex-col items-center gap-6 w-full max-w-md"
+            >
+              {/* Recording visualizer */}
+              <div className="relative w-40 h-40 flex items-center justify-center">
+                {isRecording && (
+                  <>
+                    <motion.div
+                      className="absolute inset-0 rounded-full border-2 border-primary/30"
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    <motion.div
+                      className="absolute inset-2 rounded-full border-2 border-primary/20"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0, 0.3] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                    />
+                  </>
+                )}
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={hasRecording}
+                  className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
+                    isRecording
+                      ? "bg-red-500/20 border-2 border-red-500 glow-magenta"
+                      : hasRecording
+                      ? "bg-green-500/20 border-2 border-green-500/50"
+                      : "bg-primary/10 border-2 border-primary/50 hover:bg-primary/20 hover:border-primary"
                   }`}
                 >
-                  <h3 className="font-display text-xl font-bold mb-1" style={{ color: item.color }}>
-                    {item.title}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mb-4">{item.subtitle}</p>
-                  <p className="text-sm text-foreground/80 mb-4 leading-relaxed">{item.problem}</p>
-                  <div
-                    className="inline-block text-xs font-semibold px-3 py-1 rounded-full"
-                    style={{ background: `${item.color}20`, color: item.color }}
-                  >
-                    {item.verdict}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
+                  {isRecording ? (
+                    <Square className="w-8 h-8 text-red-400" />
+                  ) : hasRecording ? (
+                    <Mic className="w-8 h-8 text-green-400" />
+                  ) : (
+                    <Mic className="w-8 h-8 text-primary" />
+                  )}
+                </button>
+              </div>
 
-      {/* Social Proof / Use Cases */}
-      <section className="py-24 sm:py-32">
-        <div className="container">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-100px' }}
-            className="text-center max-w-3xl mx-auto"
-          >
-            <motion.h2 variants={fadeUp} custom={0} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
-              Music for <span className="gradient-cosmic-text">Every Moment</span>
-            </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-muted-foreground text-lg mb-12">
-              Create BGM for your videos, podcasts, study sessions, or just for fun.
-            </motion.p>
+              {/* Timer */}
+              <div className="text-center">
+                <span className="font-mono text-2xl text-foreground">
+                  {recordingTime.toFixed(1)}s
+                </span>
+                <span className="text-muted-foreground text-sm ml-2">/ 10s</span>
+              </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { emoji: '🎬', label: 'Video BGM', desc: 'YouTube, TikTok, Reels' },
-                { emoji: '🎙️', label: 'Podcast Intros', desc: 'Unique show identity' },
-                { emoji: '📚', label: 'Study Music', desc: 'Focus & concentration' },
-                { emoji: '🎮', label: 'Game Soundtracks', desc: 'Indie game vibes' },
-              ].map((useCase, i) => (
-                <motion.div
-                  key={useCase.label}
-                  variants={fadeUp}
-                  custom={i + 2}
-                  className="glass-panel rounded-2xl p-5 text-center group hover:border-white/15 transition-all duration-500"
-                >
-                  <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-300">{useCase.emoji}</div>
-                  <h3 className="font-display text-sm font-semibold text-foreground mb-1">{useCase.label}</h3>
-                  <p className="text-xs text-muted-foreground">{useCase.desc}</p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24 sm:py-32 relative overflow-hidden">
-        <div className="absolute inset-0">
-          <img src={HERO_BG} alt="" className="w-full h-full object-cover opacity-30" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/60" />
-        </div>
-        <div className="container relative text-center">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-          >
-            <motion.h2 variants={fadeUp} custom={0} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-              Your First BGM is
-            </motion.h2>
-            <motion.h2 variants={fadeUp} custom={0.5} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
-              <span className="gradient-cosmic-text">2 Minutes Away</span>
-            </motion.h2>
-            <motion.p variants={fadeUp} custom={1} className="text-muted-foreground text-lg mb-8 max-w-lg mx-auto">
-              No account. No music theory. No downloads. Just open Muse and start creating.
-            </motion.p>
-            <motion.div variants={fadeUp} custom={2}>
-              <Button
-                onClick={() => navigate('/compose')}
-                size="lg"
-                className="gradient-cosmic text-background font-semibold px-10 h-14 rounded-full border-0 text-lg hover:opacity-90 transition-all hover:scale-105 glow-cyan"
-              >
-                Create My First BGM
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
+              {!hasRecording && !isRecording && (
+                <p className="text-muted-foreground text-sm">Tap to start recording your hum</p>
+              )}
+              {hasRecording && (
+                <p className="text-green-400 text-sm">Recording captured! Ready to generate.</p>
+              )}
             </motion.div>
-          </motion.div>
-        </div>
-      </section>
+          ) : (
+            <motion.div
+              key="piano"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex flex-col items-center gap-6 w-full max-w-2xl"
+            >
+              {/* Piano Keyboard */}
+              <div className="relative select-none" style={{ height: 180 }}>
+                {/* White keys */}
+                <div className="flex">
+                  {WHITE_KEYS.map((key, i) => (
+                    <button
+                      key={key.note}
+                      onPointerDown={() => playNote(key.freq)}
+                      className="relative w-10 sm:w-12 h-44 bg-gradient-to-b from-white to-gray-100 border border-gray-300 rounded-b-md 
+                        hover:from-gray-100 hover:to-gray-200 active:from-gray-200 active:to-gray-300 
+                        transition-all duration-75 active:translate-y-0.5"
+                      style={{ zIndex: 1 }}
+                    >
+                      <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-400">
+                        {key.note.replace(/\d/, "")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {/* Black keys */}
+                <div className="absolute top-0 left-0 flex pointer-events-none" style={{ zIndex: 2 }}>
+                  {WHITE_KEYS.map((key, i) => {
+                    const blackKey = BLACK_KEYS.find((b) => {
+                      const whiteIdx = NOTES.indexOf(key);
+                      const blackIdx = NOTES.indexOf(b);
+                      return blackIdx === whiteIdx + 1;
+                    });
+                    if (!blackKey) return <div key={key.note} className="w-10 sm:w-12" />;
+                    return (
+                      <div key={key.note} className="relative w-10 sm:w-12">
+                        <button
+                          onPointerDown={() => playNote(blackKey.freq)}
+                          className="absolute -right-3 sm:-right-3.5 w-6 sm:w-7 h-28 bg-gradient-to-b from-gray-800 to-gray-950 
+                            rounded-b-md border border-gray-700 pointer-events-auto
+                            hover:from-gray-700 hover:to-gray-900 active:from-gray-600 active:to-gray-800
+                            transition-all duration-75 active:translate-y-0.5"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-      {/* Footer */}
-      <footer className="py-8 border-t border-border/30">
-        <div className="container flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src={LOGO} alt="Muse" className="w-6 h-6" />
-            <span className="font-display text-sm font-semibold text-foreground">Muse</span>
-            <span className="text-xs text-muted-foreground">· Your AI Music Tutor</span>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Powered by Meta MusicGen</span>
-          </div>
+              {/* Piano record controls */}
+              <div className="flex items-center gap-4">
+                {!isPianoRecording && !hasRecording && (
+                  <Button onClick={startPianoRecording} variant="outline" className="gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    Start Recording
+                  </Button>
+                )}
+                {isPianoRecording && (
+                  <Button onClick={stopPianoRecording} variant="destructive" className="gap-2">
+                    <Square className="w-4 h-4" />
+                    Stop ({pianoRecordTime.toFixed(1)}s / 10s)
+                  </Button>
+                )}
+                {hasRecording && (
+                  <p className="text-green-400 text-sm">Piano melody captured! Ready to generate.</p>
+                )}
+              </div>
+              {!isPianoRecording && !hasRecording && (
+                <p className="text-muted-foreground text-sm">
+                  Hit "Start Recording" then play some notes on the keyboard
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Action buttons */}
+        <div className="flex gap-3">
+          {hasRecording && (
+            <>
+              <Button variant="outline" onClick={clearRecording} className="gap-2">
+                <Trash2 className="w-4 h-4" />
+                Clear
+              </Button>
+              <Button
+                onClick={handleGenerate}
+                disabled={isUploading}
+                className="gap-2 gradient-cosmic text-background font-semibold px-8 h-12 rounded-full border-0 hover:opacity-90 transition-all"
+              >
+                <Wand2 className="w-5 h-5" />
+                {isUploading ? "Uploading..." : "Generate Music"}
+              </Button>
+            </>
+          )}
         </div>
-      </footer>
+      </main>
     </div>
   );
 }
