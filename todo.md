@@ -17,3 +17,4 @@
 - [x] Build side-by-side Results page (MusicGen left, Lyria 3 right)
 - [x] Re-upload audio for MusicGen (needs actual audio URL, not just text description)
 - [x] Update tests for dual-model generation
+- [x] Fix MusicGen 422 error (wrong version hash)

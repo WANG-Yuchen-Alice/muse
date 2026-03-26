@@ -56,7 +56,7 @@ async function generateWithMusicGen(
   const createRes = await axios.post(
     "https://api.replicate.com/v1/predictions",
     {
-      version: "671ac645ce5e552cc63a54a2bbff63fcf798043ac68f86b6588f3975a0eff4a1",
+      version: "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
       input: {
         model_version: "stereo-melody-large",
         prompt,
