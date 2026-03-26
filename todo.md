@@ -20,3 +20,9 @@
 - [x] Fix MusicGen 422 error (wrong version hash)
 - [x] Rename model labels: hide model names, use creative descriptors (faithful vs extended)
 - [x] Increase MusicGen duration to 20 seconds
+- [x] Max duration for both models (MusicGen 30s, Lyria 3 30s) with fade-out ending
+- [x] Simplify Results page title and subtitle
+- [x] Generate unique AI names for each track instead of generic labels
+- [x] Create style-specific canvas animations (lo-fi, cinematic, jazz, electronic)
+- [x] Support audio download per track
+- [x] Support video download (canvas animation + audio) per track
