@@ -1,6 +1,7 @@
 /**
  * Muse V2 — Results Page
- * Shows AI-generated music in 3-4 styles from the user's melody
+ * Shows AI-generated music in 4 styles from the user's melody description
+ * Powered by Google Lyria 3 Clip
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
@@ -17,6 +18,7 @@ type GeneratedTrack = {
   styleName: string;
   color: string;
   audioUrl: string;
+  caption: string;
   status: "pending" | "generating" | "done" | "error";
   error?: string;
 };
@@ -25,7 +27,7 @@ export default function Results() {
   const [, navigate] = useLocation();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
-  const audioUrl = params.get("audio") ?? "";
+  const melodyDescription = params.get("melody") ?? "";
 
   const { data: styles } = trpc.music.getStyles.useQuery();
   const generateMutation = trpc.music.generate.useMutation();
@@ -44,6 +46,7 @@ export default function Results() {
           styleName: s.name,
           color: s.color,
           audioUrl: "",
+          caption: "",
           status: "pending" as const,
         }))
       );
@@ -52,7 +55,7 @@ export default function Results() {
 
   // Start generating all styles
   const startGeneration = useCallback(async () => {
-    if (!audioUrl || generationStarted) return;
+    if (generationStarted) return;
     setGenerationStarted(true);
 
     for (const style of styles ?? []) {
@@ -62,14 +65,13 @@ export default function Results() {
 
       try {
         const result = await generateMutation.mutateAsync({
-          audioUrl,
+          melodyDescription: melodyDescription || undefined,
           styleId: style.id,
-          duration: 15,
         });
         setTracks((prev) =>
           prev.map((t) =>
             t.styleId === style.id
-              ? { ...t, status: "done", audioUrl: result.audioUrl }
+              ? { ...t, status: "done", audioUrl: result.audioUrl, caption: result.caption ?? "" }
               : t
           )
         );
@@ -83,14 +85,14 @@ export default function Results() {
         );
       }
     }
-  }, [audioUrl, styles, generateMutation, generationStarted]);
+  }, [melodyDescription, styles, generateMutation, generationStarted]);
 
-  // Auto-start generation
+  // Auto-start generation when styles are loaded
   useEffect(() => {
-    if (styles && styles.length > 0 && audioUrl && !generationStarted) {
+    if (styles && styles.length > 0 && !generationStarted) {
       startGeneration();
     }
-  }, [styles, audioUrl, generationStarted, startGeneration]);
+  }, [styles, generationStarted, startGeneration]);
 
   // Audio playback
   const togglePlay = useCallback(
@@ -119,19 +121,6 @@ export default function Results() {
     a.target = "_blank";
     a.click();
   }, []);
-
-  if (!audioUrl) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">No melody provided.</p>
-          <Button onClick={() => navigate("/")} variant="outline">
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const doneCount = tracks.filter((t) => t.status === "done").length;
   const totalCount = tracks.length;
@@ -222,10 +211,10 @@ export default function Results() {
                       <h3 className="font-display font-semibold text-foreground">
                         {track.styleName}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground truncate">
                         {track.status === "pending" && "Waiting..."}
-                        {track.status === "generating" && "Generating..."}
-                        {track.status === "done" && "Ready to play"}
+                        {track.status === "generating" && "Generating with Lyria 3..."}
+                        {track.status === "done" && (track.caption ? track.caption.slice(0, 80) + "..." : "Ready to play")}
                         {track.status === "error" && (track.error ?? "Failed")}
                       </p>
                     </div>

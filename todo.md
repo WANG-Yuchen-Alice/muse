@@ -5,4 +5,11 @@
 - [x] Build Page 2: Results page showing generated music in 3-4 styles
 - [x] Wire MusicGen melody API through backend
 - [x] Test end-to-end flow
-- [ ] Save checkpoint and deliver
+- [x] Save checkpoint and deliver
+- [ ] Research max duration for MusicGen and alternatives
+- [ ] Research Lyria 3, Suno, Stable Audio 2.5 for higher quality generation
+- [ ] Test best candidate API with real melody
+- [ ] Upgrade backend to use best available model
+- [x] Test Lyria 3 Clip API call
+- [x] Upgrade backend to use Lyria 3 Clip instead of MusicGen
+- [x] Add pitch detection to convert hum to text prompt for Lyria 3
