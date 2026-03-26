@@ -1,7 +1,6 @@
 /*
- * Audio Engine Hook — Tone.js integration with real instrument samples
- * Uses Tone.Sampler for melody (piano, violin, flute, guitar)
- * Uses Tone.Sampler for harmony layers too (real piano/cello/harp/guitar samples)
+ * Audio Engine Hook — Tone.js integration with MusyngKite high-quality instrument samples
+ * Uses MusyngKite soundfont (1.75GB source) via CDN for realistic piano, violin, flute, guitar, cello
  * Falls back to Tone.Synth for electronic tone
  * All scheduling uses setTimeout (seconds-based) to avoid "Start time" errors
  */
@@ -10,79 +9,49 @@ import * as Tone from 'tone';
 import type { MelodyPoint, DrumPattern, HarmonyLayer, MelodyTone } from '@/contexts/CompositionContext';
 import type { SampleNote } from '@/lib/themes';
 
-// CDN base for instrument samples
-const SAMPLES_BASE = 'https://nbrosowsky.github.io/tonejs-instruments/samples';
+// MusyngKite CDN — high-quality General MIDI soundfont (every chromatic note)
+const MK_BASE = 'https://gleitz.github.io/midi-js-soundfonts/MusyngKite';
 
-// Minimal sample maps — Tone.Sampler interpolates between these
-const SAMPLE_MAPS: Record<string, Record<string, string>> = {
-  piano: {
-    A3: `${SAMPLES_BASE}/piano/A3.mp3`,
-    A4: `${SAMPLES_BASE}/piano/A4.mp3`,
-    A5: `${SAMPLES_BASE}/piano/A5.mp3`,
-    C3: `${SAMPLES_BASE}/piano/C3.mp3`,
-    C4: `${SAMPLES_BASE}/piano/C4.mp3`,
-    C5: `${SAMPLES_BASE}/piano/C5.mp3`,
-    E3: `${SAMPLES_BASE}/piano/E3.mp3`,
-    E4: `${SAMPLES_BASE}/piano/E4.mp3`,
-    E5: `${SAMPLES_BASE}/piano/E5.mp3`,
-    'F#3': `${SAMPLES_BASE}/piano/Fs3.mp3`,
-    'F#4': `${SAMPLES_BASE}/piano/Fs4.mp3`,
-    G3: `${SAMPLES_BASE}/piano/G3.mp3`,
-    G4: `${SAMPLES_BASE}/piano/G4.mp3`,
-  },
-  violin: {
-    A3: `${SAMPLES_BASE}/violin/A3.mp3`,
-    A4: `${SAMPLES_BASE}/violin/A4.mp3`,
-    A5: `${SAMPLES_BASE}/violin/A5.mp3`,
-    C4: `${SAMPLES_BASE}/violin/C4.mp3`,
-    C5: `${SAMPLES_BASE}/violin/C5.mp3`,
-    E4: `${SAMPLES_BASE}/violin/E4.mp3`,
-    E5: `${SAMPLES_BASE}/violin/E5.mp3`,
-    G4: `${SAMPLES_BASE}/violin/G4.mp3`,
-    G5: `${SAMPLES_BASE}/violin/G5.mp3`,
-  },
-  flute: {
-    A4: `${SAMPLES_BASE}/flute/A4.mp3`,
-    A5: `${SAMPLES_BASE}/flute/A5.mp3`,
-    C4: `${SAMPLES_BASE}/flute/C4.mp3`,
-    C5: `${SAMPLES_BASE}/flute/C5.mp3`,
-    D4: `${SAMPLES_BASE}/flute/D4.mp3`,
-    D5: `${SAMPLES_BASE}/flute/D5.mp3`,
-    E4: `${SAMPLES_BASE}/flute/E4.mp3`,
-    E5: `${SAMPLES_BASE}/flute/E5.mp3`,
-    G4: `${SAMPLES_BASE}/flute/G4.mp3`,
-    G5: `${SAMPLES_BASE}/flute/G5.mp3`,
-  },
-  guitar: {
-    A3: `${SAMPLES_BASE}/guitar-acoustic/A3.mp3`,
-    A4: `${SAMPLES_BASE}/guitar-acoustic/A4.mp3`,
-    C3: `${SAMPLES_BASE}/guitar-acoustic/C3.mp3`,
-    C4: `${SAMPLES_BASE}/guitar-acoustic/C4.mp3`,
-    D3: `${SAMPLES_BASE}/guitar-acoustic/D3.mp3`,
-    D4: `${SAMPLES_BASE}/guitar-acoustic/D4.mp3`,
-    E3: `${SAMPLES_BASE}/guitar-acoustic/E3.mp3`,
-    E4: `${SAMPLES_BASE}/guitar-acoustic/E4.mp3`,
-    G3: `${SAMPLES_BASE}/guitar-acoustic/G3.mp3`,
-    G4: `${SAMPLES_BASE}/guitar-acoustic/G4.mp3`,
-  },
-  // For harmony: cello for strings layer, harp for ambient texture
-  cello: {
-    A2: `${SAMPLES_BASE}/cello/A2.mp3`,
-    A3: `${SAMPLES_BASE}/cello/A3.mp3`,
-    C3: `${SAMPLES_BASE}/cello/C3.mp3`,
-    C4: `${SAMPLES_BASE}/cello/C4.mp3`,
-    E3: `${SAMPLES_BASE}/cello/E3.mp3`,
-    G3: `${SAMPLES_BASE}/cello/G3.mp3`,
-  },
-  harp: {
-    A3: `${SAMPLES_BASE}/harp/A3.mp3`,
-    A4: `${SAMPLES_BASE}/harp/A4.mp3`,
-    C4: `${SAMPLES_BASE}/harp/C4.mp3`,
-    C5: `${SAMPLES_BASE}/harp/C5.mp3`,
-    E4: `${SAMPLES_BASE}/harp/E4.mp3`,
-    G4: `${SAMPLES_BASE}/harp/G4.mp3`,
-  },
+// Instrument name mapping for MusyngKite CDN
+const MK_INSTRUMENTS: Record<string, string> = {
+  piano: 'acoustic_grand_piano',
+  violin: 'violin',
+  flute: 'flute',
+  guitar: 'acoustic_guitar_nylon',
+  cello: 'cello',
+  strings: 'string_ensemble_1',
+  harp: 'orchestral_harp',
 };
+
+// Build sample map for a MusyngKite instrument — load every 3rd semitone for good coverage
+function buildSampleMap(instrumentName: string): Record<string, string> {
+  const mkName = MK_INSTRUMENTS[instrumentName];
+  if (!mkName) return {};
+  const map: Record<string, string> = {};
+  // Load chromatic samples across useful range — every note for best quality
+  const notes = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  // Different ranges per instrument
+  const ranges: Record<string, [number, number]> = {
+    piano: [2, 6],
+    violin: [3, 7],
+    flute: [4, 7],
+    guitar: [2, 5],
+    cello: [2, 5],
+    strings: [2, 5],
+    harp: [2, 6],
+  };
+  const [lo, hi] = ranges[instrumentName] || [3, 6];
+  // Load every 3rd semitone for balance of quality vs load time
+  for (let oct = lo; oct <= hi; oct++) {
+    for (let i = 0; i < notes.length; i += 3) {
+      const noteName = `${notes[i]}${oct}`;
+      // Tone.js uses '#' for sharps, but MusyngKite uses 'b' for flats
+      // The CDN uses Db, Eb, Gb, Ab, Bb naming
+      map[noteName] = `${MK_BASE}/${mkName}-mp3/${noteName}.mp3`;
+    }
+  }
+  return map;
+}
 
 // Chord progressions per key for harmony layers
 const CHORD_PROGRESSIONS: Record<string, string[][]> = {
@@ -191,10 +160,10 @@ const VARIATION_SEQUENCE = [
 
 // Map harmony layer IDs to sampler names for real instrument sounds
 const HARMONY_SAMPLER_MAP: Record<string, string> = {
-  strings: 'cello',   // Use cello samples for strings harmony
-  piano: 'piano',     // Use piano samples for piano harmony
-  synth: 'harp',      // Use harp samples for synth pad (ethereal quality)
-  guitar: 'guitar',   // Use guitar samples for guitar harmony
+  strings: 'strings',   // Use string ensemble for strings harmony
+  piano: 'piano',       // Use piano samples for piano harmony
+  synth: 'harp',        // Use harp samples for synth pad (ethereal quality)
+  guitar: 'guitar',     // Use guitar samples for guitar harmony
 };
 
 export function useAudioEngine() {
@@ -251,11 +220,19 @@ export function useAudioEngine() {
         chorusRef.current = new Tone.Chorus(4, 2.5, 0.5).connect(reverbRef.current);
         chorusRef.current.start();
 
-        // Load real instrument samplers
-        const loadSampler = (name: string, samples: Record<string, string>, dest: Tone.ToneAudioNode, vol: number = -6): Promise<void> => {
+        // Load MusyngKite instrument samplers
+        const instrumentsToLoad = ['piano', 'violin', 'flute', 'guitar', 'cello', 'strings', 'harp'];
+
+        const loadSampler = (name: string, dest: Tone.ToneAudioNode, vol: number = -6): Promise<void> => {
           return new Promise((resolve) => {
-            const timeout = setTimeout(() => resolve(), 15000); // 15s timeout per sampler
+            const timeout = setTimeout(() => resolve(), 20000); // 20s timeout per sampler
             try {
+              const samples = buildSampleMap(name);
+              if (Object.keys(samples).length === 0) {
+                clearTimeout(timeout);
+                resolve();
+                return;
+              }
               const sampler = new Tone.Sampler({
                 urls: samples,
                 onload: () => {
@@ -278,10 +255,11 @@ export function useAudioEngine() {
         };
 
         // Load all samplers in parallel
-        const loadPromises = Object.entries(SAMPLE_MAPS).map(([name, samples]) => {
-          const dest = ['violin', 'cello'].includes(name) ? chorusRef.current! : reverbRef.current!;
-          const vol = ['cello', 'harp'].includes(name) ? -8 : -6; // Slightly louder for harmony instruments
-          return loadSampler(name, samples, dest, vol);
+        const loadPromises = instrumentsToLoad.map((name) => {
+          // Route bowed/sustained instruments through chorus for warmth
+          const dest = ['violin', 'cello', 'strings'].includes(name) ? chorusRef.current! : reverbRef.current!;
+          const vol = ['cello', 'strings', 'harp'].includes(name) ? -8 : -6;
+          return loadSampler(name, dest, vol);
         });
 
         // Electronic synth (no samples needed)
@@ -323,7 +301,7 @@ export function useAudioEngine() {
         // Wait for all samplers to load (with global timeout)
         await Promise.race([
           Promise.all(loadPromises),
-          new Promise<void>(resolve => setTimeout(resolve, 20000)), // 20s global timeout
+          new Promise<void>(resolve => setTimeout(resolve, 25000)), // 25s global timeout
         ]);
         setSamplesLoaded(true);
       } catch (err) {
@@ -343,7 +321,7 @@ export function useAudioEngine() {
     return samplersRef.current[t] || electronicSynthRef.current;
   }, []);
 
-  // Get sampler for a harmony layer — uses REAL samples instead of PolySynth
+  // Get sampler for a harmony layer — uses REAL samples
   const getHarmonySampler = useCallback((layerId: string): Tone.Sampler | null => {
     const samplerName = HARMONY_SAMPLER_MAP[layerId];
     if (!samplerName) return null;

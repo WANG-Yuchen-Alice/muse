@@ -40,7 +40,7 @@ export default function Compose() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top Bar */}
-      <header className="glass-panel sticky top-0 z-50 border-b border-border/30">
+      <header className="sticky top-0 z-50 border-b border-border/30" style={{ background: 'oklch(0.12 0.02 280)', boxShadow: '0 4px 20px oklch(0 0 0 / 40%)' }}>
         <div className="container flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <Button
