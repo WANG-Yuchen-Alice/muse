@@ -2,13 +2,15 @@
  * Step 2: Sketch the Melody
  * Canvas drawing: Y=pitch, X=time, quantized to scale
  * Supports: click for dots, drag for lines, multiple strokes
+ * Click on existing node to DELETE it
+ * Clear all / Undo support
  * Integrated with Tone.js for real-time audio feedback
  */
 import { useComposition } from '@/contexts/CompositionContext';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Eraser, Sparkles, ArrowRight, Volume2, Undo2, Play } from 'lucide-react';
+import { Eraser, Sparkles, ArrowRight, Volume2, Undo2, Play, Trash2, MousePointer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getScaleNotes } from '@/lib/themes';
 import type { MelodyPoint } from '@/contexts/CompositionContext';
@@ -18,6 +20,8 @@ const AI_MELODIES = [
   { id: 'ai-2', name: 'Gentle Wave', description: 'Flowing up and down like ocean waves' },
   { id: 'ai-3', name: 'Playful Skip', description: 'Bouncy, cheerful melodic pattern' },
 ];
+
+type DrawMode = 'draw' | 'erase';
 
 export default function MelodyStep() {
   const {
@@ -31,8 +35,9 @@ export default function MelodyStep() {
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 400 });
   const pointsRef = useRef<MelodyPoint[]>(melodyPoints);
   const lastNoteRef = useRef<string>('');
-  const strokeStartRef = useRef<boolean>(false);
   const undoStackRef = useRef<MelodyPoint[][]>([]);
+  const [drawMode, setDrawMode] = useState<DrawMode>('draw');
+  const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
 
   const scaleNotes = selectedTheme ? getScaleNotes(selectedTheme) : [];
   const themeColor = selectedTheme?.color || '#00E5FF';
@@ -53,6 +58,26 @@ export default function MelodyStep() {
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
   }, []);
+
+  // Find the nearest node to a point (for deletion)
+  const findNearestNode = useCallback((px: number, py: number): number | null => {
+    const pts = pointsRef.current;
+    const { width, height } = canvasSize;
+    let closestIdx: number | null = null;
+    let closestDist = Infinity;
+    const threshold = 15; // pixels
+
+    for (let i = 0; i < pts.length; i++) {
+      const nx = pts[i].x * width;
+      const ny = pts[i].y * height;
+      const dist = Math.sqrt((px - nx) ** 2 + (py - ny) ** 2);
+      if (dist < threshold && dist < closestDist) {
+        closestDist = dist;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }, [canvasSize]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -92,8 +117,15 @@ export default function MelodyStep() {
       ctx.stroke();
     }
 
-    // Note labels on left
+    // Beat numbers at top
     ctx.font = '10px "DM Sans"';
+    ctx.fillStyle = 'oklch(0.35 0.02 280)';
+    for (let i = 0; i < 4; i++) {
+      const x = (i / 4) * width + 4;
+      ctx.fillText(`Bar ${i + 1}`, x, 12);
+    }
+
+    // Note labels on left
     ctx.fillStyle = 'oklch(0.45 0.02 280)';
     scaleNotes.forEach((note, i) => {
       const y = height - ((i + 0.5) / rows) * height;
@@ -103,8 +135,6 @@ export default function MelodyStep() {
     // Draw melody points and connecting lines
     const pts = pointsRef.current;
     if (pts.length > 0) {
-      // Group consecutive points into strokes (by checking x-distance)
-      // Draw connecting lines between nearby points
       if (pts.length > 1) {
         // Outer glow line
         ctx.shadowColor = themeColor;
@@ -117,7 +147,6 @@ export default function MelodyStep() {
         ctx.moveTo(pts[0].x * width, pts[0].y * height);
         for (let i = 1; i < pts.length; i++) {
           const dx = Math.abs(pts[i].x - pts[i - 1].x);
-          // Only connect points that are close together (same stroke)
           if (dx < 0.08) {
             ctx.lineTo(pts[i].x * width, pts[i].y * height);
           } else {
@@ -145,44 +174,66 @@ export default function MelodyStep() {
       }
 
       // Draw dots at each point
-      pts.forEach((pt) => {
+      pts.forEach((pt, idx) => {
+        const isHovered = hoveredNodeIndex === idx && drawMode === 'erase';
+
         // Outer glow
         ctx.beginPath();
-        ctx.arc(pt.x * width, pt.y * height, 6, 0, Math.PI * 2);
-        ctx.fillStyle = `${themeColor}30`;
-        ctx.shadowColor = themeColor;
+        ctx.arc(pt.x * width, pt.y * height, isHovered ? 10 : 6, 0, Math.PI * 2);
+        ctx.fillStyle = isHovered ? '#FF006E40' : `${themeColor}30`;
+        ctx.shadowColor = isHovered ? '#FF006E' : themeColor;
         ctx.shadowBlur = 12;
         ctx.fill();
         ctx.shadowBlur = 0;
 
         // Main dot
         ctx.beginPath();
-        ctx.arc(pt.x * width, pt.y * height, 4, 0, Math.PI * 2);
-        ctx.fillStyle = themeColor;
+        ctx.arc(pt.x * width, pt.y * height, isHovered ? 6 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = isHovered ? '#FF006E' : themeColor;
         ctx.fill();
 
-        // Inner white highlight
-        ctx.beginPath();
-        ctx.arc(pt.x * width, pt.y * height, 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
+        // Inner white highlight (not on hovered erase)
+        if (!isHovered) {
+          ctx.beginPath();
+          ctx.arc(pt.x * width, pt.y * height, 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+        }
+
+        // X mark on hovered erase node
+        if (isHovered) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          const cx = pt.x * width;
+          const cy = pt.y * height;
+          ctx.beginPath();
+          ctx.moveTo(cx - 3, cy - 3);
+          ctx.lineTo(cx + 3, cy + 3);
+          ctx.moveTo(cx + 3, cy - 3);
+          ctx.lineTo(cx - 3, cy + 3);
+          ctx.stroke();
+        }
       });
     }
-  }, [canvasSize, scaleNotes, themeColor]);
+  }, [canvasSize, scaleNotes, themeColor, hoveredNodeIndex, drawMode]);
 
   useEffect(() => {
     drawCanvas();
   }, [drawCanvas, melodyPoints]);
 
-  const getCanvasPoint = (e: React.MouseEvent | React.TouchEvent): { x: number; y: number } => {
+  const getCanvasPoint = (e: React.MouseEvent | React.TouchEvent): { x: number; y: number; px: number; py: number } => {
     const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+    if (!canvas) return { x: 0, y: 0, px: 0, py: 0 };
     const rect = canvas.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
     return {
-      x: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
-      y: Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)),
+      x: Math.max(0, Math.min(1, px / rect.width)),
+      y: Math.max(0, Math.min(1, py / rect.height)),
+      px,
+      py,
     };
   };
 
@@ -195,10 +246,37 @@ export default function MelodyStep() {
     };
   };
 
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (drawMode === 'erase' && !isDrawing) {
+      const { px, py } = getCanvasPoint(e);
+      const nearIdx = findNearestNode(px, py);
+      setHoveredNodeIndex(nearIdx);
+    }
+
+    if (isDrawing && drawMode === 'draw') {
+      handleMove(e);
+    }
+  };
+
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
+
+    if (drawMode === 'erase') {
+      // In erase mode, click to delete the nearest node
+      const { px, py } = getCanvasPoint(e);
+      const nearIdx = findNearestNode(px, py);
+      if (nearIdx !== null) {
+        undoStackRef.current.push([...pointsRef.current]);
+        const updated = pointsRef.current.filter((_, i) => i !== nearIdx);
+        pointsRef.current = updated;
+        setMelodyPoints(updated);
+        setHoveredNodeIndex(null);
+      }
+      return;
+    }
+
+    // Draw mode
     setIsDrawing(true);
-    strokeStartRef.current = true;
     setSelectedMelodyOption('draw');
 
     // Save current state for undo
@@ -208,7 +286,7 @@ export default function MelodyStep() {
     const { note, quantizedY } = quantizeToScale(pt.y);
     const newPoint: MelodyPoint = { x: pt.x, y: quantizedY, note, time: pt.x };
 
-    // ADD to existing points (don't replace) — allows multiple strokes
+    // ADD to existing points — allows multiple strokes
     const updatedPoints = [...pointsRef.current, newPoint];
     pointsRef.current = updatedPoints;
     setMelodyPoints(updatedPoints);
@@ -217,7 +295,7 @@ export default function MelodyStep() {
   };
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
+    if (!isDrawing || drawMode !== 'draw') return;
     e.preventDefault();
     const pt = getCanvasPoint(e);
     const { note, quantizedY } = quantizeToScale(pt.y);
@@ -227,10 +305,9 @@ export default function MelodyStep() {
     if (lastPt) {
       const dx = Math.abs(pt.x - lastPt.x);
       const dy = Math.abs(quantizedY - lastPt.y);
-      if (dx < 0.01 && dy < 0.01) return; // Skip if too close
+      if (dx < 0.008 && dy < 0.01) return;
     }
 
-    strokeStartRef.current = false;
     const newPoint: MelodyPoint = { x: pt.x, y: quantizedY, note, time: pt.x };
     const updatedPoints = [...pointsRef.current, newPoint];
     pointsRef.current = updatedPoints;
@@ -245,7 +322,6 @@ export default function MelodyStep() {
 
   const handleEnd = () => {
     setIsDrawing(false);
-    strokeStartRef.current = false;
   };
 
   const clearCanvas = () => {
@@ -298,26 +374,41 @@ export default function MelodyStep() {
               Sketch your <span style={{ color: themeColor }}>melody</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-md mx-auto">
-              <strong>Click</strong> to place individual notes, or <strong>drag</strong> to draw a melody line.
-              You can draw multiple lines — each stroke adds to your melody.
+              <strong>Click</strong> to place notes, <strong>drag</strong> to draw lines.
+              Switch to <strong>Erase</strong> mode to click on a note to remove it.
             </p>
           </motion.div>
         </div>
 
-        {/* AI Melody Options + Tools */}
+        {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-          <Button
-            variant={selectedMelodyOption === 'draw' ? 'default' : 'outline'}
-            size="sm"
-            className={`rounded-full text-xs ${
-              selectedMelodyOption === 'draw' ? 'border-0' : 'border-border/50 hover:bg-white/5'
-            }`}
-            style={selectedMelodyOption === 'draw' ? { background: themeColor, color: '#0a0a1a' } : {}}
-            onClick={() => setSelectedMelodyOption('draw')}
-          >
-            <Volume2 className="w-3 h-3 mr-1" />
-            Draw
-          </Button>
+          {/* Draw/Erase mode toggle */}
+          <div className="flex items-center gap-1 glass-panel rounded-full p-1">
+            <button
+              onClick={() => { setDrawMode('draw'); setHoveredNodeIndex(null); }}
+              className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full transition-all ${
+                drawMode === 'draw' ? 'text-background font-semibold' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              style={drawMode === 'draw' ? { background: themeColor } : {}}
+            >
+              <MousePointer className="w-3 h-3" />
+              Draw
+            </button>
+            <button
+              onClick={() => setDrawMode('erase')}
+              className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full transition-all ${
+                drawMode === 'erase' ? 'text-background font-semibold' : 'text-muted-foreground hover:text-foreground'
+              }`}
+              style={drawMode === 'erase' ? { background: '#FF006E' } : {}}
+            >
+              <Eraser className="w-3 h-3" />
+              Erase
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-border/30 mx-1" />
+
+          {/* AI Melodies */}
           {AI_MELODIES.map((m) => (
             <Button
               key={m.id}
@@ -333,7 +424,9 @@ export default function MelodyStep() {
               {m.name}
             </Button>
           ))}
+
           <div className="w-px h-5 bg-border/30 mx-1" />
+
           <Button
             variant="outline"
             size="sm"
@@ -347,11 +440,12 @@ export default function MelodyStep() {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-full text-xs border-border/50 hover:bg-white/5"
+            className="rounded-full text-xs border-destructive/50 hover:bg-destructive/10 text-destructive"
             onClick={clearCanvas}
+            disabled={melodyPoints.length === 0}
           >
-            <Eraser className="w-3 h-3 mr-1" />
-            Clear
+            <Trash2 className="w-3 h-3 mr-1" />
+            Clear All
           </Button>
         </div>
 
@@ -371,12 +465,18 @@ export default function MelodyStep() {
               ref={canvasRef}
               width={canvasSize.width * 2}
               height={canvasSize.height * 2}
-              style={{ width: '100%', height: '100%', cursor: 'crosshair' }}
+              style={{
+                width: '100%',
+                height: '100%',
+                cursor: drawMode === 'erase'
+                  ? (hoveredNodeIndex !== null ? 'pointer' : 'default')
+                  : 'crosshair',
+              }}
               className="touch-none"
               onMouseDown={handleStart}
-              onMouseMove={handleMove}
+              onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleEnd}
-              onMouseLeave={handleEnd}
+              onMouseLeave={() => { handleEnd(); setHoveredNodeIndex(null); }}
               onTouchStart={handleStart}
               onTouchMove={handleMove}
               onTouchEnd={handleEnd}

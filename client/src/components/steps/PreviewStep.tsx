@@ -1,26 +1,28 @@
 /*
- * Step 6: Preview & Share
- * REAL audio playback of the full composition via Tone.js
- * Layered waveform visualization synced to playback
+ * Step 6: Preview and Share
+ * REAL audio playback via Tone.js - 8 bars with melody variations
  */
 import { useComposition } from '@/contexts/CompositionContext';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { getScaleNotes } from '@/lib/themes';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Download, Share2, RotateCcw, Image, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, Download, Share2, RotateCcw, Image, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const LAYER_COLORS = ['#00E5FF', '#FF006E', '#FFB800', '#2DD4BF', '#A78BFA', '#FF7E7E'];
+const VARIATION_LABELS = [
+  'Original', 'Original', 'Transposed', 'Ornamented',
+  'Inverted', 'Syncopated', 'Original', 'Octave Up',
+];
 
 export default function PreviewStep() {
   const {
     selectedTheme, harmonyLayers, selectedDrumPattern,
     melodyPoints, bpm, resetComposition,
   } = useComposition();
-  const {
-    playFullComposition, stopAll, isPlaying: audioIsPlaying,
-  } = useAudioEngine();
+  const { playFullComposition, stopAll, isPlaying: audioIsPlaying } = useAudioEngine();
 
   const [progress, setProgress] = useState(0);
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -31,12 +33,13 @@ export default function PreviewStep() {
   const isPlayingRef = useRef(false);
   const themeColor = selectedTheme?.color || '#00E5FF';
 
-  // Derive scale key for chord progressions
   const scaleKey = selectedTheme ? `${selectedTheme.key}-${selectedTheme.scale}` : 'D-major';
+  const scaleNotes = selectedTheme ? getScaleNotes(selectedTheme) : [];
+  const isNoDrums = selectedDrumPattern?.id === 'no-drums';
 
   const activeLayers = [
     { name: 'Melody', color: themeColor, active: true },
-    { name: 'Drums', color: '#FFB800', active: !!selectedDrumPattern },
+    ...(isNoDrums ? [] : [{ name: 'Drums', color: '#FFB800', active: !!selectedDrumPattern }]),
     ...harmonyLayers.filter(l => l.enabled).map((l, i) => ({
       name: l.name,
       color: LAYER_COLORS[(i + 2) % LAYER_COLORS.length],
@@ -45,64 +48,47 @@ export default function PreviewStep() {
     { name: 'Bass (AI)', color: '#FF7E7E', active: true },
   ];
 
-  // Keep refs in sync
-  useEffect(() => {
-    isPlayingRef.current = audioIsPlaying;
-  }, [audioIsPlaying]);
+  useEffect(() => { isPlayingRef.current = audioIsPlaying; }, [audioIsPlaying]);
+  useEffect(() => { progressRef.current = progress; }, [progress]);
 
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
-
-  // Canvas visualization
   const drawVisualization = useCallback((time: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     const w = canvas.width / 2;
     const h = canvas.height / 2;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(2, 2);
-
     const playing = isPlayingRef.current;
     const prog = progressRef.current;
 
-    // Draw each layer as a waveform
     const visibleLayers = activeLayers.filter(l => l.active);
     visibleLayers.forEach((layer, li) => {
       const yCenter = (h / (visibleLayers.length + 1)) * (li + 1);
       const amplitude = h / (visibleLayers.length + 1) * 0.35;
-
       ctx.beginPath();
       ctx.strokeStyle = layer.color;
       ctx.lineWidth = playing ? 2.5 : 1.5;
       ctx.shadowColor = layer.color;
       ctx.shadowBlur = playing ? 12 : 4;
-
       for (let x = 0; x < w; x++) {
         const freq = 0.015 + li * 0.007;
         const phase = time * (playing ? 0.003 : 0.0005) + li * 1.5;
-        const intensityMult = playing
-          ? (0.4 + Math.sin(time * 0.0015 + li * 0.7) * 0.6)
-          : 0.2;
+        const sinVal = Math.sin(time * 0.0015 + li * 0.7);
+        const intensityMult = playing ? (0.4 + sinVal * 0.6) : 0.2;
         const y = yCenter + Math.sin(x * freq + phase) * amplitude * intensityMult;
-
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
-
-      // Layer label
       ctx.font = '11px "DM Sans"';
-      ctx.fillStyle = `${layer.color}90`;
+      ctx.fillStyle = layer.color + '90';
       ctx.fillText(layer.name, 8, yCenter - amplitude - 6);
     });
 
-    // Progress playhead
     if (playing || prog > 0) {
       const progX = prog * w;
       ctx.beginPath();
@@ -113,8 +99,6 @@ export default function PreviewStep() {
       ctx.lineTo(progX, h);
       ctx.stroke();
       ctx.setLineDash([]);
-
-      // Playhead dot
       ctx.beginPath();
       ctx.arc(progX, 8, 4, 0, Math.PI * 2);
       ctx.fillStyle = themeColor;
@@ -122,12 +106,17 @@ export default function PreviewStep() {
       ctx.shadowBlur = 10;
       ctx.fill();
       ctx.shadowBlur = 0;
+      const currentBar = Math.min(7, Math.floor(prog * 8));
+      const label = VARIATION_LABELS[currentBar];
+      if (playing && label) {
+        ctx.font = '10px "DM Sans"';
+        ctx.fillStyle = '#ffffff60';
+        ctx.fillText('Bar ' + (currentBar + 1) + ': ' + label, progX + 8, 14);
+      }
     }
-
     ctx.restore();
   }, [activeLayers, themeColor]);
 
-  // Canvas sizing
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -145,7 +134,6 @@ export default function PreviewStep() {
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  // Animation loop
   useEffect(() => {
     const animate = (time: number) => {
       drawVisualization(time);
@@ -162,20 +150,22 @@ export default function PreviewStep() {
     } else {
       setHasPlayed(true);
       setProgress(0);
+      const drumPatternToPass = isNoDrums ? null : selectedDrumPattern;
       await playFullComposition(
         melodyPoints,
-        selectedDrumPattern,
+        drumPatternToPass,
         harmonyLayers,
         bpm,
         scaleKey,
         (prog) => setProgress(prog),
         () => setProgress(0),
+        scaleNotes,
       );
     }
   };
 
-  // Format time display
-  const totalDurationSec = (16 / bpm) * 60; // 4 bars at current BPM
+  // 8 bars at current BPM
+  const totalDurationSec = (32 / bpm) * 60;
   const currentSec = progress * totalDurationSec;
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -186,19 +176,17 @@ export default function PreviewStep() {
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
       <div className="container py-6 pb-24 flex-1 flex flex-col">
-        {/* Header */}
         <div className="text-center mb-6">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <h1 className="font-display text-2xl sm:text-3xl font-bold mb-2">
               Your <span style={{ color: themeColor }}>Composition</span>
             </h1>
             <p className="text-muted-foreground text-sm">
-              Press play to hear your creation — melody, drums, harmony, and bass all together.
+              8 bars with melody variations — transposed, inverted, ornamented, and more.
             </p>
           </motion.div>
         </div>
 
-        {/* Composition Name */}
         <div className="max-w-md mx-auto w-full mb-4">
           <input
             type="text"
@@ -209,7 +197,6 @@ export default function PreviewStep() {
           />
         </div>
 
-        {/* Visualization Canvas */}
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -221,14 +208,9 @@ export default function PreviewStep() {
             </div>
           )}
           <canvas ref={canvasRef} className="w-full h-full relative z-10" />
-
           {!hasPlayed && !audioIsPlaying && (
             <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center gap-2"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2">
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center"
                   style={{ background: `${themeColor}20`, border: `2px solid ${themeColor}40` }}
@@ -241,7 +223,35 @@ export default function PreviewStep() {
           )}
         </motion.div>
 
-        {/* Transport Controls */}
+        {/* Bar indicators */}
+        {(audioIsPlaying || hasPlayed) && (
+          <div className="max-w-md mx-auto w-full mb-2">
+            <div className="flex gap-1">
+              {VARIATION_LABELS.map((label, i) => {
+                const barProgress = progress * 8;
+                const isActive = i <= barProgress;
+                const isCurrent = Math.floor(barProgress) === i && audioIsPlaying;
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 text-center"
+                    style={{ opacity: isActive ? 1 : 0.3 }}
+                  >
+                    <div
+                      className="h-1 rounded-full mb-1 transition-all"
+                      style={{
+                        background: isCurrent ? themeColor : (isActive ? `${themeColor}60` : 'oklch(0.25 0.02 280)'),
+                        boxShadow: isCurrent ? `0 0 8px ${themeColor}60` : 'none',
+                      }}
+                    />
+                    <span className="text-[8px] text-muted-foreground leading-none">{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-center gap-4 mb-4">
           <Button
             onClick={togglePlay}
@@ -260,7 +270,6 @@ export default function PreviewStep() {
           </Button>
         </div>
 
-        {/* Progress Bar */}
         <div className="max-w-md mx-auto w-full mb-6">
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <motion.div
@@ -269,16 +278,11 @@ export default function PreviewStep() {
             />
           </div>
           <div className="flex justify-between mt-1">
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {formatTime(currentSec)}
-            </span>
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {formatTime(totalDurationSec)}
-            </span>
+            <span className="text-[10px] text-muted-foreground font-mono">{formatTime(currentSec)}</span>
+            <span className="text-[10px] text-muted-foreground font-mono">{formatTime(totalDurationSec)}</span>
           </div>
         </div>
 
-        {/* Layer Legend */}
         <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
           {activeLayers.filter(l => l.active).map((layer) => (
             <div key={layer.name} className="flex items-center gap-1.5">
@@ -288,7 +292,6 @@ export default function PreviewStep() {
           ))}
         </div>
 
-        {/* Actions */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button
             variant="outline"
@@ -317,12 +320,11 @@ export default function PreviewStep() {
         </div>
       </div>
 
-      {/* Bottom Action */}
       <div className="fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-border/30 py-4">
         <div className="container flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             <span className="hidden sm:inline">Theme: <strong className="text-foreground">{selectedTheme?.emoji} {selectedTheme?.name}</strong> · </span>
-            <span>{activeLayers.filter(l => l.active).length} layers · {bpm} BPM</span>
+            <span>{activeLayers.filter(l => l.active).length} layers · {bpm} BPM · 8 bars</span>
           </div>
           <Button
             onClick={() => {

@@ -1,15 +1,17 @@
 /*
  * Step 4: Add Harmony
  * Toggle instruments on/off with SOUND PREVIEW when toggling
- * Volume slider with clear label explaining what it controls
+ * Volume slider plays sound continuously as you drag
+ * Clear labels explaining what each control does
  */
 import { useComposition } from '@/contexts/CompositionContext';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { getScaleNotes } from '@/lib/themes';
 import { motion } from 'framer-motion';
-import { ArrowRight, Volume2, Play } from 'lucide-react';
+import { ArrowRight, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { useRef, useCallback } from 'react';
 
 const LAYER_COLORS: Record<string, string> = {
   strings: '#00E5FF',
@@ -27,9 +29,13 @@ const LAYER_DESCRIPTIONS: Record<string, string> = {
 
 export default function HarmonyStep() {
   const { selectedTheme, harmonyLayers, toggleHarmonyLayer, setHarmonyVolume, nextStep } = useComposition();
-  const { previewInstrument } = useAudioEngine();
+  const { previewInstrument, startContinuousPreview, setHarmonyVolume: setEngineVolume } = useAudioEngine();
   const themeColor = selectedTheme?.color || '#00E5FF';
   const hasAnyEnabled = harmonyLayers.some(l => l.enabled);
+
+  // Debounce timer for slider preview
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPreviewTimeRef = useRef<Record<string, number>>({});
 
   // Get chord notes from the selected theme's key
   const scaleNotes = selectedTheme ? getScaleNotes(selectedTheme) : [];
@@ -46,9 +52,19 @@ export default function HarmonyStep() {
     toggleHarmonyLayer(layerId);
   };
 
-  const handlePreview = (layerId: string) => {
-    previewInstrument(layerId, chordNotes);
-  };
+  const handleVolumeChange = useCallback((layerId: string, volume: number) => {
+    setHarmonyVolume(layerId, volume);
+    // Update engine volume in real-time
+    setEngineVolume(layerId, volume);
+
+    // Throttled preview: play a chord every 400ms while dragging
+    const now = Date.now();
+    const lastTime = lastPreviewTimeRef.current[layerId] || 0;
+    if (now - lastTime > 400) {
+      lastPreviewTimeRef.current[layerId] = now;
+      startContinuousPreview(layerId, volume, chordNotes);
+    }
+  }, [setHarmonyVolume, setEngineVolume, startContinuousPreview, chordNotes]);
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
@@ -59,8 +75,7 @@ export default function HarmonyStep() {
               Add <span style={{ color: themeColor }}>harmony</span>
             </h1>
             <p className="text-muted-foreground text-sm max-w-md mx-auto">
-              Toggle instruments on and off — you'll hear a preview of each sound.
-              Adjust the volume slider to control how loud each layer is in the final mix.
+              Toggle instruments on and adjust volume — drag the slider to hear the sound change in real-time.
             </p>
           </motion.div>
         </div>
@@ -75,7 +90,7 @@ export default function HarmonyStep() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.1, duration: 0.5 }}
-                className={`glass-panel rounded-2xl p-5 transition-all duration-300`}
+                className="glass-panel rounded-2xl p-5 transition-all duration-300"
                 style={{ outline: layer.enabled ? `1px solid ${color}60` : 'none', outlineOffset: '-1px' }}
               >
                 <div className="flex items-center gap-4">
@@ -97,16 +112,6 @@ export default function HarmonyStep() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-display font-semibold text-foreground text-sm">{layer.name}</h3>
-                          {layer.enabled && (
-                            <button
-                              onClick={() => handlePreview(layer.id)}
-                              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-colors hover:opacity-80"
-                              style={{ background: `${color}20`, color }}
-                            >
-                              <Play className="w-2.5 h-2.5" />
-                              Preview
-                            </button>
-                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
                       </div>
@@ -123,30 +128,29 @@ export default function HarmonyStep() {
                       </div>
                     </div>
 
-                    {/* Volume Slider with label */}
+                    {/* Volume Slider — plays sound while dragging */}
                     {layer.enabled && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         className="mt-3"
                       >
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <Volume2 className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</span>
-                          <span className="text-[10px] font-mono ml-auto" style={{ color }}>{layer.volume}%</span>
-                        </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-[10px] text-muted-foreground/60">Quiet</span>
+                          <VolumeX className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           <Slider
                             value={[layer.volume]}
-                            onValueChange={([v]) => setHarmonyVolume(layer.id, v)}
+                            onValueChange={([v]) => handleVolumeChange(layer.id, v)}
                             min={0}
                             max={100}
                             step={5}
                             className="flex-1"
                           />
-                          <span className="text-[10px] text-muted-foreground/60">Loud</span>
+                          <Volume2 className="w-3.5 h-3.5 shrink-0" style={{ color }} />
+                          <span className="text-[11px] font-mono w-8 text-right" style={{ color }}>{layer.volume}</span>
                         </div>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1 text-center">
+                          Drag to adjust volume — you'll hear the sound change
+                        </p>
                       </motion.div>
                     )}
                   </div>
@@ -163,9 +167,9 @@ export default function HarmonyStep() {
                       <motion.div
                         key={bi}
                         className="flex-1 rounded-full"
-                        style={{ background: color }}
+                        style={{ background: color, opacity: layer.volume / 100 }}
                         animate={{
-                          height: `${20 + Math.sin(bi * 0.5 + i * 2) * 60 + Math.random() * 20}%`,
+                          height: `${(20 + Math.sin(bi * 0.5 + i * 2) * 60) * (layer.volume / 100)}%`,
                         }}
                         transition={{
                           duration: 0.8,
