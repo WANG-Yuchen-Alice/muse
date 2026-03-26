@@ -1,20 +1,52 @@
 /*
  * Step 3: Choose the Rhythm
  * AI recommends 3 drum patterns, visual beat grid
+ * Plays a preview of the drum pattern when selected
  */
 import { useComposition } from '@/contexts/CompositionContext';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { DRUM_PATTERNS } from '@/lib/themes';
 import { motion } from 'framer-motion';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { useCallback } from 'react';
 
 const DRUM_LABELS = ['Kick', 'Snare', 'Hi-hat'];
 const DRUM_COLORS = ['#00E5FF', '#FF006E', '#FFB800'];
 
 export default function RhythmStep() {
   const { selectedTheme, selectedDrumPattern, selectDrumPattern, drumDensity, setDrumDensity, nextStep } = useComposition();
+  const { previewDrum } = useAudioEngine();
   const themeColor = selectedTheme?.color || '#00E5FF';
+
+  const handleSelectPattern = useCallback((pattern: typeof DRUM_PATTERNS[0]) => {
+    selectDrumPattern(pattern);
+    // Play a quick preview of the pattern
+    const playPreview = async () => {
+      const delays = [0, 150, 300, 450];
+      for (let step = 0; step < 4; step++) {
+        setTimeout(() => {
+          if (pattern.pattern[0]?.[step]) previewDrum('kick');
+          if (pattern.pattern[1]?.[step]) previewDrum('snare');
+          if (pattern.pattern[2]?.[step]) previewDrum('hihat');
+        }, delays[step]);
+      }
+    };
+    playPreview();
+  }, [selectDrumPattern, previewDrum]);
+
+  const handlePreviewFull = useCallback((pattern: typeof DRUM_PATTERNS[0]) => {
+    // Play first 8 steps of the pattern
+    for (let step = 0; step < 8; step++) {
+      const delay = step * 150;
+      setTimeout(() => {
+        if (pattern.pattern[0]?.[step]) previewDrum('kick');
+        if (pattern.pattern[1]?.[step]) previewDrum('snare');
+        if (pattern.pattern[2]?.[step]) previewDrum('hihat');
+      }, delay);
+    }
+  }, [previewDrum]);
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
@@ -25,7 +57,7 @@ export default function RhythmStep() {
               Choose the <span style={{ color: themeColor }}>rhythm</span>
             </h1>
             <p className="text-muted-foreground text-sm">
-              AI suggests patterns that complement your melody. Pick one and adjust the density.
+              Select a pattern to hear a preview. Adjust density to make it sparser or busier.
             </p>
           </motion.div>
         </div>
@@ -34,13 +66,13 @@ export default function RhythmStep() {
           {DRUM_PATTERNS.map((pattern, pi) => {
             const isSelected = selectedDrumPattern?.id === pattern.id;
             return (
-              <motion.button
+              <motion.div
                 key={pattern.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: pi * 0.1, duration: 0.5 }}
-                onClick={() => selectDrumPattern(pattern)}
-                className={`w-full text-left glass-panel rounded-2xl p-5 transition-all duration-300 ${
+                onClick={() => handleSelectPattern(pattern)}
+                className={`w-full text-left glass-panel rounded-2xl p-5 transition-all duration-300 cursor-pointer ${
                   isSelected ? '' : 'hover:border-white/15'
                 }`}
                 style={{ outline: isSelected ? `2px solid ${themeColor}` : 'none', outlineOffset: '-2px' }}
@@ -58,6 +90,19 @@ export default function RhythmStep() {
                         >
                           <Check className="w-3 h-3 text-background" />
                         </motion.div>
+                      )}
+                      {isSelected && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreviewFull(pattern);
+                          }}
+                          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-colors hover:opacity-80"
+                          style={{ background: `${themeColor}20`, color: themeColor }}
+                        >
+                          <Play className="w-2.5 h-2.5" />
+                          Preview
+                        </button>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">{pattern.description}</p>
@@ -96,7 +141,7 @@ export default function RhythmStep() {
                     </div>
                   ))}
                 </div>
-              </motion.button>
+              </motion.div>
             );
           })}
 
@@ -108,7 +153,10 @@ export default function RhythmStep() {
               className="glass-panel rounded-2xl p-5"
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-display font-semibold text-foreground">Adjust Density</span>
+                <div>
+                  <span className="text-sm font-display font-semibold text-foreground">Adjust Density</span>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Controls how many drum hits play per bar</p>
+                </div>
                 <span className="text-xs font-mono text-muted-foreground">{drumDensity}%</span>
               </div>
               <div className="flex items-center gap-4">

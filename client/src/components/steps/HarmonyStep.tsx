@@ -1,10 +1,13 @@
 /*
  * Step 4: Add Harmony
- * Toggle instruments on/off, adjust volume with sliders
+ * Toggle instruments on/off with SOUND PREVIEW when toggling
+ * Volume slider with clear label explaining what it controls
  */
 import { useComposition } from '@/contexts/CompositionContext';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { getScaleNotes } from '@/lib/themes';
 import { motion } from 'framer-motion';
-import { ArrowRight, Volume2 } from 'lucide-react';
+import { ArrowRight, Volume2, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
@@ -15,10 +18,37 @@ const LAYER_COLORS: Record<string, string> = {
   guitar: '#2DD4BF',
 };
 
+const LAYER_DESCRIPTIONS: Record<string, string> = {
+  strings: 'Warm, sustained chords that fill the background',
+  piano: 'Bright chord hits that add rhythm and clarity',
+  synth: 'Ambient pad that creates atmosphere and depth',
+  guitar: 'Plucked chords that add texture and groove',
+};
+
 export default function HarmonyStep() {
   const { selectedTheme, harmonyLayers, toggleHarmonyLayer, setHarmonyVolume, nextStep } = useComposition();
+  const { previewInstrument } = useAudioEngine();
   const themeColor = selectedTheme?.color || '#00E5FF';
   const hasAnyEnabled = harmonyLayers.some(l => l.enabled);
+
+  // Get chord notes from the selected theme's key
+  const scaleNotes = selectedTheme ? getScaleNotes(selectedTheme) : [];
+  const chordNotes = scaleNotes.length >= 5
+    ? [scaleNotes[0], scaleNotes[2], scaleNotes[4]]
+    : ['C4', 'E4', 'G4'];
+
+  const handleToggle = (layerId: string) => {
+    const layer = harmonyLayers.find(l => l.id === layerId);
+    // If turning ON, play a preview
+    if (layer && !layer.enabled) {
+      previewInstrument(layerId, chordNotes);
+    }
+    toggleHarmonyLayer(layerId);
+  };
+
+  const handlePreview = (layerId: string) => {
+    previewInstrument(layerId, chordNotes);
+  };
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
@@ -28,8 +58,9 @@ export default function HarmonyStep() {
             <h1 className="font-display text-2xl sm:text-3xl font-bold mb-2">
               Add <span style={{ color: themeColor }}>harmony</span>
             </h1>
-            <p className="text-muted-foreground text-sm">
-              Toggle instruments on and off. AI ensures everything harmonizes perfectly.
+            <p className="text-muted-foreground text-sm max-w-md mx-auto">
+              Toggle instruments on and off — you'll hear a preview of each sound.
+              Adjust the volume slider to control how loud each layer is in the final mix.
             </p>
           </motion.div>
         </div>
@@ -37,6 +68,7 @@ export default function HarmonyStep() {
         <div className="max-w-2xl mx-auto space-y-4">
           {harmonyLayers.map((layer, i) => {
             const color = LAYER_COLORS[layer.id] || themeColor;
+            const desc = LAYER_DESCRIPTIONS[layer.id] || '';
             return (
               <motion.div
                 key={layer.id}
@@ -49,7 +81,7 @@ export default function HarmonyStep() {
                 <div className="flex items-center gap-4">
                   {/* Toggle Button */}
                   <button
-                    onClick={() => toggleHarmonyLayer(layer.id)}
+                    onClick={() => handleToggle(layer.id)}
                     className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl transition-all duration-300 shrink-0"
                     style={{
                       background: layer.enabled ? `${color}20` : 'oklch(0.18 0.015 280)',
@@ -61,27 +93,62 @@ export default function HarmonyStep() {
                   </button>
 
                   <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1">
                       <div>
-                        <h3 className="font-display font-semibold text-foreground text-sm">{layer.name}</h3>
-                        <p className="text-xs text-muted-foreground">{layer.instrument}</p>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-display font-semibold text-foreground text-sm">{layer.name}</h3>
+                          {layer.enabled && (
+                            <button
+                              onClick={() => handlePreview(layer.id)}
+                              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition-colors hover:opacity-80"
+                              style={{ background: `${color}20`, color }}
+                            >
+                              <Play className="w-2.5 h-2.5" />
+                              Preview
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-xs font-mono text-muted-foreground w-8 text-right">{layer.volume}%</span>
+                      <div className="text-right shrink-0 ml-2">
+                        <span
+                          className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                          style={{
+                            background: layer.enabled ? `${color}20` : 'oklch(0.2 0.015 280)',
+                            color: layer.enabled ? color : 'oklch(0.5 0.015 280)',
+                          }}
+                        >
+                          {layer.enabled ? 'ON' : 'OFF'}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Volume Slider */}
-                    <Slider
-                      value={[layer.volume]}
-                      onValueChange={([v]) => setHarmonyVolume(layer.id, v)}
-                      min={0}
-                      max={100}
-                      step={5}
-                      disabled={!layer.enabled}
-                      className={`${!layer.enabled ? 'opacity-30' : ''}`}
-                    />
+                    {/* Volume Slider with label */}
+                    {layer.enabled && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-3"
+                      >
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Volume2 className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</span>
+                          <span className="text-[10px] font-mono ml-auto" style={{ color }}>{layer.volume}%</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] text-muted-foreground/60">Quiet</span>
+                          <Slider
+                            value={[layer.volume]}
+                            onValueChange={([v]) => setHarmonyVolume(layer.id, v)}
+                            min={0}
+                            max={100}
+                            step={5}
+                            className="flex-1"
+                          />
+                          <span className="text-[10px] text-muted-foreground/60">Loud</span>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
                 </div>
 

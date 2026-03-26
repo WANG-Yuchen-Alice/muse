@@ -1,13 +1,14 @@
 /*
  * Step 2: Sketch the Melody
  * Canvas drawing: Y=pitch, X=time, quantized to scale
+ * Supports: click for dots, drag for lines, multiple strokes
  * Integrated with Tone.js for real-time audio feedback
  */
 import { useComposition } from '@/contexts/CompositionContext';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Eraser, Sparkles, ArrowRight, Volume2 } from 'lucide-react';
+import { Eraser, Sparkles, ArrowRight, Volume2, Undo2, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getScaleNotes } from '@/lib/themes';
 import type { MelodyPoint } from '@/contexts/CompositionContext';
@@ -30,9 +31,16 @@ export default function MelodyStep() {
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 400 });
   const pointsRef = useRef<MelodyPoint[]>(melodyPoints);
   const lastNoteRef = useRef<string>('');
+  const strokeStartRef = useRef<boolean>(false);
+  const undoStackRef = useRef<MelodyPoint[][]>([]);
 
   const scaleNotes = selectedTheme ? getScaleNotes(selectedTheme) : [];
   const themeColor = selectedTheme?.color || '#00E5FF';
+
+  // Sync points ref with state
+  useEffect(() => {
+    pointsRef.current = melodyPoints;
+  }, [melodyPoints]);
 
   useEffect(() => {
     const updateSize = () => {
@@ -58,10 +66,10 @@ export default function MelodyStep() {
     ctx.scale(2, 2);
     ctx.clearRect(0, 0, width, height);
 
-    // Grid
+    // Grid lines
+    const rows = scaleNotes.length || 12;
     ctx.strokeStyle = 'oklch(0.25 0.02 280 / 25%)';
     ctx.lineWidth = 0.5;
-    const rows = scaleNotes.length || 12;
     for (let i = 0; i <= rows; i++) {
       const y = (i / rows) * height;
       ctx.beginPath();
@@ -71,23 +79,20 @@ export default function MelodyStep() {
     }
     for (let i = 0; i <= 16; i++) {
       const x = (i / 16) * width;
+      if (i % 4 === 0) {
+        ctx.strokeStyle = 'oklch(0.3 0.02 280 / 40%)';
+        ctx.lineWidth = 1;
+      } else {
+        ctx.strokeStyle = 'oklch(0.25 0.02 280 / 25%)';
+        ctx.lineWidth = 0.5;
+      }
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
       ctx.stroke();
-      if (i % 4 === 0) {
-        ctx.strokeStyle = 'oklch(0.3 0.02 280 / 40%)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-        ctx.strokeStyle = 'oklch(0.25 0.02 280 / 25%)';
-        ctx.lineWidth = 0.5;
-      }
     }
 
-    // Note labels
+    // Note labels on left
     ctx.font = '10px "DM Sans"';
     ctx.fillStyle = 'oklch(0.45 0.02 280)';
     scaleNotes.forEach((note, i) => {
@@ -95,48 +100,70 @@ export default function MelodyStep() {
       ctx.fillText(note, 6, y + 3);
     });
 
-    // Melody line
+    // Draw melody points and connecting lines
     const pts = pointsRef.current;
-    if (pts.length > 1) {
-      // Outer glow
-      ctx.shadowColor = themeColor;
-      ctx.shadowBlur = 20;
-      ctx.strokeStyle = `${themeColor}40`;
-      ctx.lineWidth = 8;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x * width, pts[0].y * height);
-      for (let i = 1; i < pts.length; i++) {
-        ctx.lineTo(pts[i].x * width, pts[i].y * height);
-      }
-      ctx.stroke();
-
-      // Main line
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = themeColor;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x * width, pts[0].y * height);
-      for (let i = 1; i < pts.length; i++) {
-        ctx.lineTo(pts[i].x * width, pts[i].y * height);
-      }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Points with glow
-      pts.forEach((pt) => {
-        ctx.beginPath();
-        ctx.arc(pt.x * width, pt.y * height, 5, 0, Math.PI * 2);
-        ctx.fillStyle = themeColor;
+    if (pts.length > 0) {
+      // Group consecutive points into strokes (by checking x-distance)
+      // Draw connecting lines between nearby points
+      if (pts.length > 1) {
+        // Outer glow line
         ctx.shadowColor = themeColor;
+        ctx.shadowBlur = 20;
+        ctx.strokeStyle = `${themeColor}30`;
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x * width, pts[0].y * height);
+        for (let i = 1; i < pts.length; i++) {
+          const dx = Math.abs(pts[i].x - pts[i - 1].x);
+          // Only connect points that are close together (same stroke)
+          if (dx < 0.08) {
+            ctx.lineTo(pts[i].x * width, pts[i].y * height);
+          } else {
+            ctx.moveTo(pts[i].x * width, pts[i].y * height);
+          }
+        }
+        ctx.stroke();
+
+        // Main line
         ctx.shadowBlur = 10;
+        ctx.strokeStyle = themeColor;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x * width, pts[0].y * height);
+        for (let i = 1; i < pts.length; i++) {
+          const dx = Math.abs(pts[i].x - pts[i - 1].x);
+          if (dx < 0.08) {
+            ctx.lineTo(pts[i].x * width, pts[i].y * height);
+          } else {
+            ctx.moveTo(pts[i].x * width, pts[i].y * height);
+          }
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Draw dots at each point
+      pts.forEach((pt) => {
+        // Outer glow
+        ctx.beginPath();
+        ctx.arc(pt.x * width, pt.y * height, 6, 0, Math.PI * 2);
+        ctx.fillStyle = `${themeColor}30`;
+        ctx.shadowColor = themeColor;
+        ctx.shadowBlur = 12;
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Inner white dot
+        // Main dot
         ctx.beginPath();
-        ctx.arc(pt.x * width, pt.y * height, 2, 0, Math.PI * 2);
+        ctx.arc(pt.x * width, pt.y * height, 4, 0, Math.PI * 2);
+        ctx.fillStyle = themeColor;
+        ctx.fill();
+
+        // Inner white highlight
+        ctx.beginPath();
+        ctx.arc(pt.x * width, pt.y * height, 1.5, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
       });
@@ -171,12 +198,20 @@ export default function MelodyStep() {
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsDrawing(true);
+    strokeStartRef.current = true;
     setSelectedMelodyOption('draw');
+
+    // Save current state for undo
+    undoStackRef.current.push([...pointsRef.current]);
+
     const pt = getCanvasPoint(e);
     const { note, quantizedY } = quantizeToScale(pt.y);
     const newPoint: MelodyPoint = { x: pt.x, y: quantizedY, note, time: pt.x };
-    pointsRef.current = [newPoint];
-    setMelodyPoints([newPoint]);
+
+    // ADD to existing points (don't replace) — allows multiple strokes
+    const updatedPoints = [...pointsRef.current, newPoint];
+    pointsRef.current = updatedPoints;
+    setMelodyPoints(updatedPoints);
     playNote(note);
     lastNoteRef.current = note;
   };
@@ -186,11 +221,20 @@ export default function MelodyStep() {
     e.preventDefault();
     const pt = getCanvasPoint(e);
     const { note, quantizedY } = quantizeToScale(pt.y);
+
+    // Minimum distance threshold for smooth drawing
     const lastPt = pointsRef.current[pointsRef.current.length - 1];
-    if (lastPt && Math.abs(pt.x - lastPt.x) < 0.015) return;
+    if (lastPt) {
+      const dx = Math.abs(pt.x - lastPt.x);
+      const dy = Math.abs(quantizedY - lastPt.y);
+      if (dx < 0.01 && dy < 0.01) return; // Skip if too close
+    }
+
+    strokeStartRef.current = false;
     const newPoint: MelodyPoint = { x: pt.x, y: quantizedY, note, time: pt.x };
-    pointsRef.current = [...pointsRef.current, newPoint];
-    setMelodyPoints([...pointsRef.current]);
+    const updatedPoints = [...pointsRef.current, newPoint];
+    pointsRef.current = updatedPoints;
+    setMelodyPoints(updatedPoints);
 
     // Play note if it changed
     if (note !== lastNoteRef.current) {
@@ -201,15 +245,26 @@ export default function MelodyStep() {
 
   const handleEnd = () => {
     setIsDrawing(false);
+    strokeStartRef.current = false;
   };
 
   const clearCanvas = () => {
+    undoStackRef.current.push([...pointsRef.current]);
     pointsRef.current = [];
     setMelodyPoints([]);
   };
 
+  const undoLastStroke = () => {
+    const prev = undoStackRef.current.pop();
+    if (prev !== undefined) {
+      pointsRef.current = prev;
+      setMelodyPoints(prev);
+    }
+  };
+
   const generateAIMelody = (type: 'ai-1' | 'ai-2' | 'ai-3') => {
     setSelectedMelodyOption(type);
+    undoStackRef.current.push([...pointsRef.current]);
     const points: MelodyPoint[] = [];
     const numPoints = 16;
     for (let i = 0; i < numPoints; i++) {
@@ -228,11 +283,10 @@ export default function MelodyStep() {
     }
     pointsRef.current = points;
     setMelodyPoints(points);
-    // Play the generated melody
     playMelodySequence(points, bpm);
   };
 
-  const hasMelody = melodyPoints.length > 2;
+  const hasMelody = melodyPoints.length > 0;
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
@@ -243,13 +297,14 @@ export default function MelodyStep() {
             <h1 className="font-display text-2xl sm:text-3xl font-bold mb-2">
               Sketch your <span style={{ color: themeColor }}>melody</span>
             </h1>
-            <p className="text-muted-foreground text-sm">
-              Draw a line on the canvas — hear each note as you draw. Or let AI suggest one.
+            <p className="text-muted-foreground text-sm max-w-md mx-auto">
+              <strong>Click</strong> to place individual notes, or <strong>drag</strong> to draw a melody line.
+              You can draw multiple lines — each stroke adds to your melody.
             </p>
           </motion.div>
         </div>
 
-        {/* AI Melody Options */}
+        {/* AI Melody Options + Tools */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
           <Button
             variant={selectedMelodyOption === 'draw' ? 'default' : 'outline'}
@@ -278,6 +333,17 @@ export default function MelodyStep() {
               {m.name}
             </Button>
           ))}
+          <div className="w-px h-5 bg-border/30 mx-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full text-xs border-border/50 hover:bg-white/5"
+            onClick={undoLastStroke}
+            disabled={undoStackRef.current.length === 0 && melodyPoints.length === 0}
+          >
+            <Undo2 className="w-3 h-3 mr-1" />
+            Undo
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -305,7 +371,7 @@ export default function MelodyStep() {
               ref={canvasRef}
               width={canvasSize.width * 2}
               height={canvasSize.height * 2}
-              style={{ width: '100%', height: '100%' }}
+              style={{ width: '100%', height: '100%', cursor: 'crosshair' }}
               className="touch-none"
               onMouseDown={handleStart}
               onMouseMove={handleMove}
@@ -321,8 +387,8 @@ export default function MelodyStep() {
                   <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: `${themeColor}15`, border: `1px dashed ${themeColor}40` }}>
                     <Volume2 className="w-6 h-6" style={{ color: `${themeColor}80` }} />
                   </div>
-                  <p className="text-muted-foreground text-sm mb-1">Draw your melody here</p>
-                  <p className="text-muted-foreground/50 text-xs">Hear each note as you draw</p>
+                  <p className="text-muted-foreground text-sm mb-1">Click or drag to create your melody</p>
+                  <p className="text-muted-foreground/50 text-xs">Each note plays as you place it</p>
                 </div>
               </div>
             )}
@@ -341,18 +407,15 @@ export default function MelodyStep() {
             <span>{selectedTheme?.key} {selectedTheme?.scale}</span>
             <span>·</span>
             <span>{bpm} BPM</span>
-            {hasMelody && (
-              <>
-                <span>·</span>
-                <button
-                  onClick={() => playMelodySequence(melodyPoints, bpm)}
-                  className="underline hover:text-foreground transition-colors"
-                  style={{ color: themeColor }}
-                >
-                  ▶ Play melody
-                </button>
-              </>
-            )}
+            <span>·</span>
+            <button
+              onClick={() => playMelodySequence(melodyPoints, bpm)}
+              className="inline-flex items-center gap-1 underline hover:text-foreground transition-colors"
+              style={{ color: themeColor }}
+            >
+              <Play className="w-3 h-3" />
+              Play melody
+            </button>
           </motion.div>
         )}
       </div>
@@ -364,7 +427,7 @@ export default function MelodyStep() {
             {hasMelody ? (
               <span>{melodyPoints.length} notes sketched</span>
             ) : (
-              'Draw or select a melody to continue'
+              'Click or draw a melody to continue'
             )}
           </div>
           <Button
