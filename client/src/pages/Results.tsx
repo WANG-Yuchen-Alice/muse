@@ -1,11 +1,11 @@
 /**
- * Muse V2 — Results Page (Comparison Mode)
- * Side-by-side: MusicGen (left) vs Lyria 3 (right), 4 styles each = 8 total
+ * Muse V2 — Results Page (Dual Generation)
+ * Two versions per style: "Your Melody" (faithful) vs "Reimagined" (extended)
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Play, Pause, Download, Loader2, Music, RefreshCw } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, Play, Pause, Download, Loader2, Music, RefreshCw, Fingerprint, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
@@ -15,9 +15,11 @@ const LOGO =
 type TrackStatus = "pending" | "generating" | "done" | "error";
 
 type GeneratedTrack = {
-  key: string; // unique key: `${model}-${styleId}`
+  key: string;
   model: "musicgen" | "lyria3";
-  modelLabel: string;
+  variant: "faithful" | "reimagined";
+  variantLabel: string;
+  variantDesc: string;
   styleId: string;
   styleName: string;
   color: string;
@@ -43,15 +45,17 @@ export default function Results() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [generationStarted, setGenerationStarted] = useState(false);
 
-  // Initialize 8 tracks (4 styles × 2 models)
+  // Initialize 8 tracks (4 styles × 2 variants)
   useEffect(() => {
     if (styles && tracks.length === 0) {
       const allTracks: GeneratedTrack[] = [];
       for (const s of styles) {
         allTracks.push({
-          key: `musicgen-${s.id}`,
+          key: `faithful-${s.id}`,
           model: "musicgen",
-          modelLabel: "MusicGen",
+          variant: "faithful",
+          variantLabel: "Your Melody",
+          variantDesc: "Closely follows your original notes",
           styleId: s.id,
           styleName: s.name,
           color: s.color,
@@ -60,9 +64,11 @@ export default function Results() {
           status: "pending",
         });
         allTracks.push({
-          key: `lyria3-${s.id}`,
+          key: `reimagined-${s.id}`,
           model: "lyria3",
-          modelLabel: "Lyria 3",
+          variant: "reimagined",
+          variantLabel: "Reimagined",
+          variantDesc: "AI extends and elaborates on your idea",
           styleId: s.id,
           styleName: s.name,
           color: s.color,
@@ -75,34 +81,31 @@ export default function Results() {
     }
   }, [styles, tracks.length]);
 
-  // Generate all 8 tracks: run both models in parallel for each style
+  // Generate all 8 tracks
   const startGeneration = useCallback(async () => {
     if (generationStarted || !styles) return;
     setGenerationStarted(true);
 
-    // Generate each style sequentially, but both models in parallel per style
     for (const style of styles) {
-      const musicgenKey = `musicgen-${style.id}`;
-      const lyriaKey = `lyria3-${style.id}`;
+      const faithfulKey = `faithful-${style.id}`;
+      const reimaginedKey = `reimagined-${style.id}`;
 
-      // Mark both as generating
       setTracks((prev) =>
         prev.map((t) =>
-          t.key === musicgenKey || t.key === lyriaKey ? { ...t, status: "generating" } : t
+          t.key === faithfulKey || t.key === reimaginedKey ? { ...t, status: "generating" } : t
         )
       );
 
-      // Run both in parallel
-      const musicgenPromise = (async () => {
+      const faithfulPromise = (async () => {
         try {
           const result = await generateMusicGen.mutateAsync({
             audioUrl,
             styleId: style.id,
-            duration: 15,
+            duration: 20,
           });
           setTracks((prev) =>
             prev.map((t) =>
-              t.key === musicgenKey
+              t.key === faithfulKey
                 ? { ...t, status: "done", audioUrl: result.audioUrl }
                 : t
             )
@@ -110,7 +113,7 @@ export default function Results() {
         } catch (err: any) {
           setTracks((prev) =>
             prev.map((t) =>
-              t.key === musicgenKey
+              t.key === faithfulKey
                 ? { ...t, status: "error", error: err.message ?? "Failed" }
                 : t
             )
@@ -118,7 +121,7 @@ export default function Results() {
         }
       })();
 
-      const lyriaPromise = (async () => {
+      const reimaginedPromise = (async () => {
         try {
           const result = await generateLyria.mutateAsync({
             melodyDescription: melodyDescription || undefined,
@@ -126,7 +129,7 @@ export default function Results() {
           });
           setTracks((prev) =>
             prev.map((t) =>
-              t.key === lyriaKey
+              t.key === reimaginedKey
                 ? { ...t, status: "done", audioUrl: result.audioUrl, caption: result.caption ?? "" }
                 : t
             )
@@ -134,7 +137,7 @@ export default function Results() {
         } catch (err: any) {
           setTracks((prev) =>
             prev.map((t) =>
-              t.key === lyriaKey
+              t.key === reimaginedKey
                 ? { ...t, status: "error", error: err.message ?? "Failed" }
                 : t
             )
@@ -142,8 +145,7 @@ export default function Results() {
         }
       })();
 
-      // Wait for both to finish before moving to next style
-      await Promise.all([musicgenPromise, lyriaPromise]);
+      await Promise.all([faithfulPromise, reimaginedPromise]);
     }
   }, [styles, audioUrl, melodyDescription, generateMusicGen, generateLyria, generationStarted]);
 
@@ -176,7 +178,7 @@ export default function Results() {
   const downloadTrack = useCallback((track: GeneratedTrack) => {
     const a = document.createElement("a");
     a.href = track.audioUrl;
-    a.download = `muse-${track.model}-${track.styleId}.mp3`;
+    a.download = `muse-${track.variant}-${track.styleId}.mp3`;
     a.target = "_blank";
     a.click();
   }, []);
@@ -184,9 +186,8 @@ export default function Results() {
   const doneCount = tracks.filter((t) => t.status === "done").length;
   const totalCount = tracks.length;
 
-  // Group tracks by style for side-by-side display
-  const musicgenTracks = tracks.filter((t) => t.model === "musicgen");
-  const lyriaTracks = tracks.filter((t) => t.model === "lyria3");
+  const faithfulTracks = tracks.filter((t) => t.variant === "faithful");
+  const reimaginedTracks = tracks.filter((t) => t.variant === "reimagined");
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -216,15 +217,15 @@ export default function Results() {
       <main className="flex-1 container py-8 max-w-6xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-display text-2xl sm:text-3xl font-bold mb-2 text-center">
-            <span className="gradient-cosmic-text">Model Comparison</span>
+            <span className="gradient-cosmic-text">Your Music, Two Ways</span>
           </h1>
           <p className="text-muted-foreground text-center mb-2">
             {doneCount < totalCount
-              ? `Generating ${totalCount} tracks (${doneCount} done)...`
-              : `All ${totalCount} tracks generated! Tap to listen and compare.`}
+              ? `Creating ${totalCount} tracks (${doneCount} ready)...`
+              : `All ${totalCount} tracks ready! Tap to listen and compare.`}
           </p>
           <p className="text-xs text-muted-foreground text-center mb-8">
-            Same 4 styles, two different AI models side by side
+            Each style rendered as a faithful interpretation and an AI-reimagined version
           </p>
 
           {/* Progress */}
@@ -240,31 +241,37 @@ export default function Results() {
           )}
 
           {/* Column headers */}
-          <div className="grid grid-cols-2 gap-6 mb-4">
-            <div className="text-center">
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="text-center flex flex-col items-center gap-1.5">
+              <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center mb-1">
+                <Fingerprint className="w-5 h-5 text-cyan-400" />
+              </div>
               <h2 className="font-display text-lg font-bold text-foreground">
-                MusicGen
+                Your Melody
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Meta · Melody-conditioned · Uses your audio
+              <p className="text-xs text-muted-foreground max-w-[200px]">
+                Stays true to the notes you played
               </p>
             </div>
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center gap-1.5">
+              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center mb-1">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+              </div>
               <h2 className="font-display text-lg font-bold text-foreground">
-                Lyria 3
+                Reimagined
               </h2>
-              <p className="text-xs text-muted-foreground">
-                Google · Text-prompted · 48kHz stereo
+              <p className="text-xs text-muted-foreground max-w-[200px]">
+                AI takes creative liberty with your idea
               </p>
             </div>
           </div>
 
           {/* Side-by-side tracks */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {(styles ?? []).map((style, i) => {
-              const mgTrack = musicgenTracks.find((t) => t.styleId === style.id);
-              const lyTrack = lyriaTracks.find((t) => t.styleId === style.id);
-              if (!mgTrack || !lyTrack) return null;
+              const fTrack = faithfulTracks.find((t) => t.styleId === style.id);
+              const rTrack = reimaginedTracks.find((t) => t.styleId === style.id);
+              if (!fTrack || !rTrack) return null;
 
               return (
                 <motion.div
@@ -286,15 +293,18 @@ export default function Results() {
 
                   {/* Two cards side by side */}
                   <div className="grid grid-cols-2 gap-4">
-                    {[mgTrack, lyTrack].map((track) => (
-                      <TrackCard
-                        key={track.key}
-                        track={track}
-                        isPlaying={playingKey === track.key}
-                        onTogglePlay={() => togglePlay(track)}
-                        onDownload={() => downloadTrack(track)}
-                      />
-                    ))}
+                    <TrackCard
+                      track={fTrack}
+                      isPlaying={playingKey === fTrack.key}
+                      onTogglePlay={() => togglePlay(fTrack)}
+                      onDownload={() => downloadTrack(fTrack)}
+                    />
+                    <TrackCard
+                      track={rTrack}
+                      isPlaying={playingKey === rTrack.key}
+                      onTogglePlay={() => togglePlay(rTrack)}
+                      onDownload={() => downloadTrack(rTrack)}
+                    />
                   </div>
                 </motion.div>
               );
@@ -317,6 +327,12 @@ function TrackCard({
   onTogglePlay: () => void;
   onDownload: () => void;
 }) {
+  const variantIcon = track.variant === "faithful" ? (
+    <Fingerprint className="w-4 h-4 text-cyan-400" />
+  ) : (
+    <Sparkles className="w-4 h-4 text-purple-400" />
+  );
+
   return (
     <div
       className={`glass-panel rounded-xl p-4 transition-all ${
@@ -327,12 +343,12 @@ function TrackCard({
         {/* Status icon */}
         <div
           className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: `${track.color}20` }}
+          style={{ background: `${track.color}15` }}
         >
           {track.status === "generating" ? (
             <Loader2 className="w-4 h-4 animate-spin" style={{ color: track.color }} />
           ) : track.status === "done" ? (
-            <Music className="w-4 h-4" style={{ color: track.color }} />
+            variantIcon
           ) : track.status === "error" ? (
             <span className="text-red-400 text-sm font-bold">!</span>
           ) : (
@@ -345,12 +361,11 @@ function TrackCard({
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-foreground">{track.modelLabel}</p>
+          <p className="text-xs font-semibold text-foreground">{track.variantLabel}</p>
           <p className="text-[10px] text-muted-foreground truncate">
             {track.status === "pending" && "Waiting..."}
-            {track.status === "generating" && `Generating...`}
-            {track.status === "done" &&
-              (track.caption ? track.caption.slice(0, 60) + "..." : "Ready to play")}
+            {track.status === "generating" && "Creating..."}
+            {track.status === "done" && track.variantDesc}
             {track.status === "error" && (track.error ?? "Failed")}
           </p>
         </div>

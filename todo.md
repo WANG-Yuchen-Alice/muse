@@ -18,3 +18,5 @@
 - [x] Re-upload audio for MusicGen (needs actual audio URL, not just text description)
 - [x] Update tests for dual-model generation
 - [x] Fix MusicGen 422 error (wrong version hash)
+- [x] Rename model labels: hide model names, use creative descriptors (faithful vs extended)
+- [x] Increase MusicGen duration to 20 seconds

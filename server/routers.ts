@@ -199,7 +199,7 @@ export const appRouter = router({
         z.object({
           audioUrl: z.string(),
           styleId: z.string(),
-          duration: z.number().min(8).max(30).default(15),
+          duration: z.number().min(8).max(30).default(20),
         })
       )
       .mutation(async ({ input }) => {
