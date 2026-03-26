@@ -1,4 +1,4 @@
-import type { Theme } from '@/contexts/CompositionContext';
+import type { Theme, MelodyTone } from '@/contexts/CompositionContext';
 
 export const THEMES: Theme[] = [
   {
@@ -14,6 +14,7 @@ export const THEMES: Theme[] = [
     color: '#FF6B35',
     accentColor: '#00B4D8',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-ocean-sunset-GzCzB5RrbL8JLM8sQpFkZB.webp',
+    defaultTone: 'piano',
   },
   {
     id: 'bamboo-forest',
@@ -28,6 +29,7 @@ export const THEMES: Theme[] = [
     color: '#2DD4BF',
     accentColor: '#A3E635',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-bamboo-forest-bkb2M7JvSmLfdCgtHD5SEZ.webp',
+    defaultTone: 'flute',
   },
   {
     id: 'city-neon',
@@ -42,6 +44,7 @@ export const THEMES: Theme[] = [
     color: '#FF006E',
     accentColor: '#00E5FF',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-city-neon-a7oQjagSjdJscMvoBWDwY2.webp',
+    defaultTone: 'electronic',
   },
   {
     id: 'rainy-cafe',
@@ -56,6 +59,7 @@ export const THEMES: Theme[] = [
     color: '#FFB800',
     accentColor: '#FF7E7E',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-rainy-cafe-68Hmi3CgJNFmbh26hmYThU.webp',
+    defaultTone: 'guitar',
   },
   {
     id: 'stargazing',
@@ -70,8 +74,74 @@ export const THEMES: Theme[] = [
     color: '#A78BFA',
     accentColor: '#67E8F9',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-stargazing-SceYXcPWyRfdigA834GBZf.webp',
+    defaultTone: 'violin',
   },
 ];
+
+// Tone display info for the UI
+export const TONE_OPTIONS: { id: MelodyTone; name: string; emoji: string; description: string }[] = [
+  { id: 'piano', name: 'Piano', emoji: '🎹', description: 'Warm, expressive keys' },
+  { id: 'violin', name: 'Violin', emoji: '🎻', description: 'Rich, emotional strings' },
+  { id: 'flute', name: 'Flute', emoji: '🪈', description: 'Airy, meditative breath' },
+  { id: 'guitar', name: 'Guitar', emoji: '🎸', description: 'Intimate, acoustic warmth' },
+  { id: 'electronic', name: 'Electronic', emoji: '🎛️', description: 'Sharp, modern synth' },
+];
+
+// Sample melodies for each theme — played when user clicks a theme card
+// Each is an array of { note, duration } pairs that create a short recognizable motif
+export interface SampleNote {
+  note: string;
+  duration: string;
+  time: number; // in seconds from start
+}
+
+export const THEME_SAMPLES: Record<string, SampleNote[]> = {
+  'ocean-sunset': [
+    { note: 'D4', duration: '4n', time: 0 },
+    { note: 'F#4', duration: '8n', time: 0.4 },
+    { note: 'A4', duration: '4n', time: 0.7 },
+    { note: 'G4', duration: '8n', time: 1.2 },
+    { note: 'F#4', duration: '4n', time: 1.5 },
+    { note: 'E4', duration: '8n', time: 2.0 },
+    { note: 'D4', duration: '2n', time: 2.3 },
+  ],
+  'bamboo-forest': [
+    { note: 'G4', duration: '4n', time: 0 },
+    { note: 'A4', duration: '8n', time: 0.5 },
+    { note: 'B4', duration: '4n', time: 0.8 },
+    { note: 'D5', duration: '8n', time: 1.4 },
+    { note: 'B4', duration: '4n', time: 1.7 },
+    { note: 'A4', duration: '8n', time: 2.3 },
+    { note: 'G4', duration: '2n', time: 2.6 },
+  ],
+  'city-neon': [
+    { note: 'A4', duration: '8n', time: 0 },
+    { note: 'C5', duration: '8n', time: 0.2 },
+    { note: 'E5', duration: '8n', time: 0.4 },
+    { note: 'A4', duration: '8n', time: 0.6 },
+    { note: 'G4', duration: '4n', time: 0.8 },
+    { note: 'F4', duration: '8n', time: 1.1 },
+    { note: 'E4', duration: '8n', time: 1.3 },
+    { note: 'A4', duration: '4n', time: 1.5 },
+  ],
+  'rainy-cafe': [
+    { note: 'F4', duration: '4n', time: 0 },
+    { note: 'A4', duration: '8n', time: 0.5 },
+    { note: 'C5', duration: '4n', time: 0.8 },
+    { note: 'Bb4', duration: '8n', time: 1.4 },
+    { note: 'A4', duration: '4n', time: 1.7 },
+    { note: 'G4', duration: '8n', time: 2.2 },
+    { note: 'F4', duration: '2n', time: 2.5 },
+  ],
+  'stargazing': [
+    { note: 'E4', duration: '2n', time: 0 },
+    { note: 'G4', duration: '4n', time: 0.8 },
+    { note: 'B4', duration: '2n', time: 1.3 },
+    { note: 'A4', duration: '4n', time: 2.1 },
+    { note: 'G4', duration: '4n', time: 2.6 },
+    { note: 'E4', duration: '2n', time: 3.1 },
+  ],
+};
 
 export const SCALE_NOTES: Record<string, string[]> = {
   'D-major': ['D4', 'E4', 'F#4', 'G4', 'A4', 'B4', 'C#5', 'D5', 'E5', 'F#5', 'G5', 'A5'],

@@ -26,9 +26,14 @@ type DrawMode = 'draw' | 'erase';
 export default function MelodyStep() {
   const {
     selectedTheme, melodyPoints, setMelodyPoints,
-    selectedMelodyOption, setSelectedMelodyOption, nextStep, bpm
+    selectedMelodyOption, setSelectedMelodyOption, nextStep, bpm, melodyTone
   } = useComposition();
-  const { playNote, playMelodySequence } = useAudioEngine();
+  const { playNote, playMelodySequence, setTone } = useAudioEngine();
+
+  // Sync tone with context
+  useEffect(() => {
+    setTone(melodyTone);
+  }, [melodyTone, setTone]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -315,7 +320,7 @@ export default function MelodyStep() {
 
     // Play note if it changed
     if (note !== lastNoteRef.current) {
-      playNote(note);
+      playNote(note, '16n', melodyTone);
       lastNoteRef.current = note;
     }
   };
@@ -359,7 +364,7 @@ export default function MelodyStep() {
     }
     pointsRef.current = points;
     setMelodyPoints(points);
-    playMelodySequence(points, bpm);
+    playMelodySequence(points, bpm, melodyTone);
   };
 
   const hasMelody = melodyPoints.length > 0;
@@ -509,7 +514,7 @@ export default function MelodyStep() {
             <span>{bpm} BPM</span>
             <span>·</span>
             <button
-              onClick={() => playMelodySequence(melodyPoints, bpm)}
+              onClick={() => playMelodySequence(melodyPoints, bpm, melodyTone)}
               className="inline-flex items-center gap-1 underline hover:text-foreground transition-colors"
               style={{ color: themeColor }}
             >

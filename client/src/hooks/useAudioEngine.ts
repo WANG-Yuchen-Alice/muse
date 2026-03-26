@@ -1,11 +1,87 @@
 /*
- * Audio Engine Hook — Tone.js integration
- * Full composition playback: melody + drums + harmony layers + bass
- * Supports: melody variations, longer duration (8 bars), continuous instrument preview
+ * Audio Engine Hook — Tone.js integration with real instrument samples
+ * Uses Tone.Sampler for piano, violin, flute, guitar (from tonejs-instruments)
+ * Falls back to Tone.Synth for electronic tone
+ * All scheduling uses seconds-based timing to avoid "Start time" errors
  */
 import { useRef, useCallback, useEffect, useState } from 'react';
 import * as Tone from 'tone';
-import type { MelodyPoint, DrumPattern, HarmonyLayer } from '@/contexts/CompositionContext';
+import type { MelodyPoint, DrumPattern, HarmonyLayer, MelodyTone } from '@/contexts/CompositionContext';
+import type { SampleNote } from '@/lib/themes';
+
+// CDN base for instrument samples
+const SAMPLES_BASE = 'https://nbrosowsky.github.io/tonejs-instruments/samples';
+
+// Minimal sample maps for each instrument (Tone.Sampler interpolates between these)
+const SAMPLE_MAPS: Record<string, Record<string, string>> = {
+  piano: {
+    A3: `${SAMPLES_BASE}/piano/A3.mp3`,
+    A4: `${SAMPLES_BASE}/piano/A4.mp3`,
+    A5: `${SAMPLES_BASE}/piano/A5.mp3`,
+    C3: `${SAMPLES_BASE}/piano/C3.mp3`,
+    C4: `${SAMPLES_BASE}/piano/C4.mp3`,
+    C5: `${SAMPLES_BASE}/piano/C5.mp3`,
+    E3: `${SAMPLES_BASE}/piano/E3.mp3`,
+    E4: `${SAMPLES_BASE}/piano/E4.mp3`,
+    E5: `${SAMPLES_BASE}/piano/E5.mp3`,
+    'F#3': `${SAMPLES_BASE}/piano/Fs3.mp3`,
+    'F#4': `${SAMPLES_BASE}/piano/Fs4.mp3`,
+    G3: `${SAMPLES_BASE}/piano/G3.mp3`,
+    G4: `${SAMPLES_BASE}/piano/G4.mp3`,
+  },
+  violin: {
+    A3: `${SAMPLES_BASE}/violin/A3.mp3`,
+    A4: `${SAMPLES_BASE}/violin/A4.mp3`,
+    A5: `${SAMPLES_BASE}/violin/A5.mp3`,
+    C4: `${SAMPLES_BASE}/violin/C4.mp3`,
+    C5: `${SAMPLES_BASE}/violin/C5.mp3`,
+    E4: `${SAMPLES_BASE}/violin/E4.mp3`,
+    E5: `${SAMPLES_BASE}/violin/E5.mp3`,
+    G4: `${SAMPLES_BASE}/violin/G4.mp3`,
+    G5: `${SAMPLES_BASE}/violin/G5.mp3`,
+  },
+  flute: {
+    A4: `${SAMPLES_BASE}/flute/A4.mp3`,
+    A5: `${SAMPLES_BASE}/flute/A5.mp3`,
+    C4: `${SAMPLES_BASE}/flute/C4.mp3`,
+    C5: `${SAMPLES_BASE}/flute/C5.mp3`,
+    D4: `${SAMPLES_BASE}/flute/D4.mp3`,
+    D5: `${SAMPLES_BASE}/flute/D5.mp3`,
+    E4: `${SAMPLES_BASE}/flute/E4.mp3`,
+    E5: `${SAMPLES_BASE}/flute/E5.mp3`,
+    G4: `${SAMPLES_BASE}/flute/G4.mp3`,
+    G5: `${SAMPLES_BASE}/flute/G5.mp3`,
+  },
+  guitar: {
+    A3: `${SAMPLES_BASE}/guitar-acoustic/A3.mp3`,
+    A4: `${SAMPLES_BASE}/guitar-acoustic/A4.mp3`,
+    C3: `${SAMPLES_BASE}/guitar-acoustic/C3.mp3`,
+    C4: `${SAMPLES_BASE}/guitar-acoustic/C4.mp3`,
+    D3: `${SAMPLES_BASE}/guitar-acoustic/D3.mp3`,
+    D4: `${SAMPLES_BASE}/guitar-acoustic/D4.mp3`,
+    E3: `${SAMPLES_BASE}/guitar-acoustic/E3.mp3`,
+    E4: `${SAMPLES_BASE}/guitar-acoustic/E4.mp3`,
+    G3: `${SAMPLES_BASE}/guitar-acoustic/G3.mp3`,
+    G4: `${SAMPLES_BASE}/guitar-acoustic/G4.mp3`,
+  },
+  // Harmony instruments
+  cello: {
+    A2: `${SAMPLES_BASE}/cello/A2.mp3`,
+    A3: `${SAMPLES_BASE}/cello/A3.mp3`,
+    C3: `${SAMPLES_BASE}/cello/C3.mp3`,
+    C4: `${SAMPLES_BASE}/cello/C4.mp3`,
+    E3: `${SAMPLES_BASE}/cello/E3.mp3`,
+    G3: `${SAMPLES_BASE}/cello/G3.mp3`,
+  },
+  harp: {
+    A3: `${SAMPLES_BASE}/harp/A3.mp3`,
+    A4: `${SAMPLES_BASE}/harp/A4.mp3`,
+    C4: `${SAMPLES_BASE}/harp/C4.mp3`,
+    C5: `${SAMPLES_BASE}/harp/C5.mp3`,
+    E4: `${SAMPLES_BASE}/harp/E4.mp3`,
+    G4: `${SAMPLES_BASE}/harp/G4.mp3`,
+  },
+};
 
 // Chord progressions per key for harmony layers
 const CHORD_PROGRESSIONS: Record<string, string[][]> = {
@@ -31,7 +107,7 @@ const CHORD_PROGRESSIONS: Record<string, string[][]> = {
   ],
 };
 
-// Bass notes per key (8 bars worth)
+// Bass notes per key
 const BASS_LINES: Record<string, string[]> = {
   'D-major': ['D2', 'G2', 'A2', 'D2', 'B1', 'G2', 'A2', 'D2', 'E2', 'F#2', 'G2', 'A2', 'B2', 'A2', 'G2', 'D2'],
   'G-pentatonic': ['G2', 'E2', 'A2', 'G2', 'D2', 'E2', 'A2', 'G2', 'B2', 'A2', 'G2', 'E2', 'D2', 'G2', 'A2', 'G2'],
@@ -40,10 +116,10 @@ const BASS_LINES: Record<string, string[]> = {
   'E-minor': ['E2', 'C2', 'D2', 'E2', 'A2', 'B2', 'C2', 'E2', 'G2', 'A2', 'B2', 'E2', 'C2', 'D2', 'B2', 'E2'],
 };
 
-// Generate melody variations from the original melody
+// Melody variation generator
 function generateMelodyVariation(
   original: MelodyPoint[],
-  variationType: 'original' | 'transposed' | 'inverted' | 'retrograde' | 'rhythmic-shift' | 'ornamented' | 'simplified' | 'octave-up',
+  variationType: string,
   scaleNotes: string[],
 ): MelodyPoint[] {
   if (original.length === 0) return [];
@@ -53,58 +129,36 @@ function generateMelodyVariation(
     const idx = scaleNotes.indexOf(note);
     return idx >= 0 ? idx : Math.floor(scaleNotes.length / 2);
   };
-
   const indexToNote = (idx: number): string => {
-    const clamped = Math.max(0, Math.min(scaleNotes.length - 1, idx));
-    return scaleNotes[clamped];
+    return scaleNotes[Math.max(0, Math.min(scaleNotes.length - 1, idx))];
   };
 
   switch (variationType) {
-    case 'original':
-      return sorted;
-
-    case 'transposed': {
-      // Shift all notes up by 2 scale degrees
+    case 'original': return sorted;
+    case 'transposed':
       return sorted.map(pt => {
-        const idx = noteToIndex(pt.note);
-        const newIdx = idx + 2;
-        const newNote = indexToNote(newIdx);
-        const newY = 1 - newIdx / (scaleNotes.length - 1);
-        return { ...pt, note: newNote, y: Math.max(0, Math.min(1, newY)) };
+        const newIdx = noteToIndex(pt.note) + 2;
+        const note = indexToNote(newIdx);
+        return { ...pt, note, y: 1 - Math.max(0, Math.min(scaleNotes.length - 1, newIdx)) / (scaleNotes.length - 1) };
       });
-    }
-
     case 'inverted': {
-      // Mirror the melody around its center pitch
-      const centerIdx = sorted.reduce((sum, pt) => sum + noteToIndex(pt.note), 0) / sorted.length;
+      const center = sorted.reduce((s, pt) => s + noteToIndex(pt.note), 0) / sorted.length;
       return sorted.map(pt => {
-        const idx = noteToIndex(pt.note);
-        const newIdx = Math.round(2 * centerIdx - idx);
-        const newNote = indexToNote(newIdx);
-        const newY = 1 - Math.max(0, Math.min(scaleNotes.length - 1, newIdx)) / (scaleNotes.length - 1);
-        return { ...pt, note: newNote, y: Math.max(0, Math.min(1, newY)) };
+        const newIdx = Math.round(2 * center - noteToIndex(pt.note));
+        const note = indexToNote(newIdx);
+        return { ...pt, note, y: 1 - Math.max(0, Math.min(scaleNotes.length - 1, newIdx)) / (scaleNotes.length - 1) };
       });
     }
-
-    case 'retrograde': {
-      // Reverse the time positions while keeping pitches in reverse order
-      const maxX = Math.max(...sorted.map(p => p.x));
+    case 'retrograde':
       return sorted.map((pt, i) => {
-        const reversePt = sorted[sorted.length - 1 - i];
-        return { ...pt, note: reversePt.note, y: reversePt.y, x: pt.x };
+        const rev = sorted[sorted.length - 1 - i];
+        return { ...pt, note: rev.note, y: rev.y };
       });
-    }
-
-    case 'rhythmic-shift': {
-      // Shift all notes slightly forward in time, with some syncopation
-      return sorted.map((pt, i) => {
-        const shift = (i % 2 === 0) ? 0.03 : -0.02;
-        return { ...pt, x: Math.max(0, Math.min(1, pt.x + shift)) };
-      });
-    }
-
+    case 'rhythmic-shift':
+      return sorted.map((pt, i) => ({
+        ...pt, x: Math.max(0, Math.min(1, pt.x + (i % 2 === 0 ? 0.03 : -0.02)))
+      }));
     case 'ornamented': {
-      // Add passing tones between notes
       const result: MelodyPoint[] = [];
       for (let i = 0; i < sorted.length; i++) {
         result.push(sorted[i]);
@@ -114,61 +168,49 @@ function generateMelodyVariation(
           if (Math.abs(nextIdx - curIdx) > 1) {
             const midIdx = Math.round((curIdx + nextIdx) / 2);
             const midX = (sorted[i].x + sorted[i + 1].x) / 2;
-            const midNote = indexToNote(midIdx);
-            const midY = 1 - midIdx / (scaleNotes.length - 1);
-            result.push({ x: midX, y: Math.max(0, Math.min(1, midY)), note: midNote, time: midX });
+            result.push({ x: midX, y: 1 - midIdx / (scaleNotes.length - 1), note: indexToNote(midIdx), time: midX });
           }
         }
       }
       return result;
     }
-
-    case 'simplified': {
-      // Keep only every other note for a sparser feel
-      return sorted.filter((_, i) => i % 2 === 0);
-    }
-
-    case 'octave-up': {
-      // Move notes up by shifting index up significantly
+    case 'octave-up':
       return sorted.map(pt => {
-        const idx = noteToIndex(pt.note);
-        const newIdx = Math.min(scaleNotes.length - 1, idx + 4);
-        const newNote = indexToNote(newIdx);
-        const newY = 1 - newIdx / (scaleNotes.length - 1);
-        return { ...pt, note: newNote, y: Math.max(0, Math.min(1, newY)) };
+        const newIdx = Math.min(scaleNotes.length - 1, noteToIndex(pt.note) + 4);
+        return { ...pt, note: indexToNote(newIdx), y: 1 - newIdx / (scaleNotes.length - 1) };
       });
-    }
-
-    default:
-      return sorted;
+    default: return sorted;
   }
 }
 
-// Variation sequence for 8 bars
-const VARIATION_SEQUENCE: Array<'original' | 'transposed' | 'inverted' | 'retrograde' | 'rhythmic-shift' | 'ornamented' | 'simplified' | 'octave-up'> = [
-  'original',
-  'original',
-  'transposed',
-  'ornamented',
-  'inverted',
-  'rhythmic-shift',
-  'original',
-  'octave-up',
+const VARIATION_SEQUENCE = [
+  'original', 'original', 'transposed', 'ornamented',
+  'inverted', 'rhythmic-shift', 'original', 'octave-up',
 ];
 
 export function useAudioEngine() {
   const isInitializedRef = useRef(false);
   const isPlayingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [samplesLoaded, setSamplesLoaded] = useState(false);
 
-  // Synths
-  const melodySynthRef = useRef<Tone.Synth | null>(null);
+  // Samplers for real instruments
+  const samplersRef = useRef<Record<string, Tone.Sampler>>({});
+  // Electronic synth fallback
+  const electronicSynthRef = useRef<Tone.Synth | null>(null);
+  // Current melody sampler/synth
+  const currentToneRef = useRef<MelodyTone>('piano');
+
+  // Drum synths
   const drumSynthsRef = useRef<{
     kick: Tone.MembraneSynth | null;
     snare: Tone.NoiseSynth | null;
     hihat: Tone.MetalSynth | null;
   }>({ kick: null, snare: null, hihat: null });
+
+  // Harmony synths (PolySynth for chords)
   const harmonySynthsRef = useRef<Record<string, Tone.PolySynth | null>>({});
+  // Bass synth
   const bassSynthRef = useRef<Tone.Synth | null>(null);
 
   // Effects
@@ -177,11 +219,12 @@ export function useAudioEngine() {
   const compressorRef = useRef<Tone.Compressor | null>(null);
   const chorusRef = useRef<Tone.Chorus | null>(null);
 
-  // Scheduled event IDs for cleanup
-  const scheduledIdsRef = useRef<number[]>([]);
+  // Scheduled timeouts for cleanup
+  const scheduledTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // For continuous harmony preview
-  const previewLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Sample preview stop function
+  const sampleStopRef = useRef<(() => void) | null>(null);
 
   const initialize = useCallback(async () => {
     if (isInitializedRef.current) return;
@@ -195,17 +238,40 @@ export function useAudioEngine() {
     chorusRef.current = new Tone.Chorus(4, 2.5, 0.5).connect(reverbRef.current);
     chorusRef.current.start();
 
-    // Melody synth — richer FM-like sound
-    melodySynthRef.current = new Tone.Synth({
+    // Load real instrument samplers
+    const loadSampler = (name: string, samples: Record<string, string>, dest: Tone.ToneAudioNode): Promise<void> => {
+      return new Promise((resolve) => {
+        const sampler = new Tone.Sampler({
+          urls: samples,
+          onload: () => {
+            resolve();
+          },
+          onerror: () => {
+            resolve(); // Don't block on error
+          },
+          volume: -6,
+          release: 1.5,
+        }).connect(dest);
+        samplersRef.current[name] = sampler;
+      });
+    };
+
+    // Load all samplers in parallel
+    const loadPromises = Object.entries(SAMPLE_MAPS).map(([name, samples]) => {
+      const dest = ['violin', 'cello'].includes(name) ? chorusRef.current! : reverbRef.current!;
+      return loadSampler(name, samples, dest);
+    });
+
+    // Electronic synth (no samples needed)
+    electronicSynthRef.current = new Tone.Synth({
       oscillator: { type: 'fatsawtooth', spread: 20, count: 3 } as unknown as Tone.OmniOscillatorOptions,
       envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 1.0 },
       volume: -8,
     }).connect(delayRef.current);
 
-    // Drum synths — improved quality
+    // Drum synths
     drumSynthsRef.current.kick = new Tone.MembraneSynth({
-      pitchDecay: 0.08,
-      octaves: 8,
+      pitchDecay: 0.08, octaves: 8,
       oscillator: { type: 'sine' },
       envelope: { attack: 0.002, decay: 0.5, sustain: 0.01, release: 0.5 },
       volume: -6,
@@ -219,43 +285,36 @@ export function useAudioEngine() {
 
     drumSynthsRef.current.hihat = new Tone.MetalSynth({
       envelope: { attack: 0.001, decay: 0.06, release: 0.02 },
-      harmonicity: 5.1,
-      modulationIndex: 40,
-      resonance: 5000,
-      octaves: 1.5,
+      harmonicity: 5.1, modulationIndex: 40, resonance: 5000, octaves: 1.5,
       volume: -18,
     }).connect(compressorRef.current);
 
-    // Harmony synths — much richer sounds using multiple oscillators and chorus
-    const stringSynth = new Tone.PolySynth(Tone.Synth, {
+    // Harmony PolySynths — using richer oscillators
+    harmonySynthsRef.current['strings'] = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'fatsawtooth', spread: 40, count: 3 } as unknown as Tone.OmniOscillatorOptions,
       envelope: { attack: 0.6, decay: 0.8, sustain: 0.8, release: 2.0 },
       volume: -16,
     }).connect(chorusRef.current);
-    harmonySynthsRef.current['strings'] = stringSynth;
 
-    const pianoSynth = new Tone.PolySynth(Tone.Synth, {
+    harmonySynthsRef.current['piano'] = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'fattriangle', spread: 10, count: 3 } as unknown as Tone.OmniOscillatorOptions,
       envelope: { attack: 0.005, decay: 1.0, sustain: 0.1, release: 1.2 },
       volume: -10,
     }).connect(reverbRef.current);
-    harmonySynthsRef.current['piano'] = pianoSynth;
 
-    const synthPad = new Tone.PolySynth(Tone.Synth, {
+    harmonySynthsRef.current['synth'] = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'fatsine', spread: 30, count: 3 } as unknown as Tone.OmniOscillatorOptions,
       envelope: { attack: 0.8, decay: 1.5, sustain: 0.7, release: 3.0 },
       volume: -16,
     }).connect(chorusRef.current);
-    harmonySynthsRef.current['synth'] = synthPad;
 
-    const guitarSynth = new Tone.PolySynth(Tone.Synth, {
+    harmonySynthsRef.current['guitar'] = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'fatsquare', spread: 15, count: 2 } as unknown as Tone.OmniOscillatorOptions,
       envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 0.8 },
       volume: -12,
     }).connect(reverbRef.current);
-    harmonySynthsRef.current['guitar'] = guitarSynth;
 
-    // Bass synth — deeper, warmer
+    // Bass synth
     bassSynthRef.current = new Tone.Synth({
       oscillator: { type: 'fatsine', spread: 10, count: 2 } as unknown as Tone.OmniOscillatorOptions,
       envelope: { attack: 0.04, decay: 0.4, sustain: 0.6, release: 0.6 },
@@ -263,19 +322,79 @@ export function useAudioEngine() {
     }).connect(compressorRef.current);
 
     isInitializedRef.current = true;
+
+    // Wait for all samplers to load
+    await Promise.all(loadPromises);
+    setSamplesLoaded(true);
+  }, []);
+
+  // Get the right instrument for the current tone
+  const getMelodyInstrument = useCallback((tone?: MelodyTone) => {
+    const t = tone || currentToneRef.current;
+    if (t === 'electronic') return electronicSynthRef.current;
+    return samplersRef.current[t] || electronicSynthRef.current;
   }, []);
 
   // Play a single note (for melody drawing)
-  const playNote = useCallback(async (note: string, duration: string = '16n') => {
+  const playNote = useCallback(async (note: string, duration: string = '16n', tone?: MelodyTone) => {
     await initialize();
-    if (melodySynthRef.current) {
+    const instrument = getMelodyInstrument(tone);
+    if (instrument) {
       try {
-        melodySynthRef.current.triggerAttackRelease(note, duration);
-      } catch {
-        // Ignore scheduling errors
-      }
+        instrument.triggerAttackRelease(note, duration);
+      } catch { /* ignore */ }
     }
-  }, [initialize]);
+  }, [initialize, getMelodyInstrument]);
+
+  // Set current tone
+  const setTone = useCallback((tone: MelodyTone) => {
+    currentToneRef.current = tone;
+  }, []);
+
+  // Play a sample melody for theme preview — uses setTimeout for scheduling (no Transport)
+  const playSampleMelody = useCallback(async (notes: SampleNote[], tone: MelodyTone) => {
+    await initialize();
+
+    // Stop any currently playing sample
+    if (sampleStopRef.current) {
+      sampleStopRef.current();
+    }
+
+    const instrument = getMelodyInstrument(tone);
+    if (!instrument) return;
+
+    let cancelled = false;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    notes.forEach((n) => {
+      const t = setTimeout(() => {
+        if (cancelled) return;
+        try {
+          instrument.triggerAttackRelease(n.note, n.duration);
+        } catch { /* ignore */ }
+      }, n.time * 1000);
+      timeouts.push(t);
+    });
+
+    sampleStopRef.current = () => {
+      cancelled = true;
+      timeouts.forEach(clearTimeout);
+      sampleStopRef.current = null;
+    };
+
+    // Auto-cleanup after the sample finishes
+    const maxTime = Math.max(...notes.map(n => n.time)) + 2;
+    const cleanup = setTimeout(() => {
+      sampleStopRef.current = null;
+    }, maxTime * 1000);
+    timeouts.push(cleanup);
+  }, [initialize, getMelodyInstrument]);
+
+  const stopSampleMelody = useCallback(() => {
+    if (sampleStopRef.current) {
+      sampleStopRef.current();
+    }
+  }, []);
 
   // Preview an instrument sound (for harmony step)
   const previewInstrument = useCallback(async (instrumentId: string, notes?: string[]) => {
@@ -285,42 +404,25 @@ export function useAudioEngine() {
     const previewNotes = notes || ['C4', 'E4', 'G4'];
     try {
       synth.triggerAttackRelease(previewNotes, '2n');
-    } catch {
-      // Ignore
-    }
+    } catch { /* ignore */ }
   }, [initialize]);
 
-  // Start continuous harmony preview (plays chord repeatedly while slider is being dragged)
+  // Start continuous harmony preview
   const startContinuousPreview = useCallback(async (instrumentId: string, volume: number, notes?: string[]) => {
     await initialize();
     const synth = harmonySynthsRef.current[instrumentId];
     if (!synth) return;
-
-    // Set volume based on slider value
     synth.volume.value = -30 + (volume / 100) * 24;
-
-    // Stop any existing preview loop
-    if (previewLoopRef.current) {
-      clearInterval(previewLoopRef.current);
-      previewLoopRef.current = null;
-    }
-
     const previewNotes = notes || ['C4', 'E4', 'G4'];
     try {
       synth.triggerAttackRelease(previewNotes, '4n');
-    } catch {
-      // Ignore
-    }
+    } catch { /* ignore */ }
   }, [initialize]);
 
   const stopContinuousPreview = useCallback(() => {
-    if (previewLoopRef.current) {
-      clearInterval(previewLoopRef.current);
-      previewLoopRef.current = null;
-    }
+    // No-op for now, chords decay naturally
   }, []);
 
-  // Update volume of a harmony synth in real-time
   const setHarmonyVolume = useCallback(async (instrumentId: string, volume: number) => {
     await initialize();
     const synth = harmonySynthsRef.current[instrumentId];
@@ -328,59 +430,43 @@ export function useAudioEngine() {
     synth.volume.value = -30 + (volume / 100) * 24;
   }, [initialize]);
 
-  // Preview a drum hit
+  // Preview drum hit
   const previewDrum = useCallback(async (type: 'kick' | 'snare' | 'hihat') => {
     await initialize();
     const drums = drumSynthsRef.current;
     try {
-      if (type === 'kick' && drums.kick) {
-        drums.kick.triggerAttackRelease('C1', '8n');
-      } else if (type === 'snare' && drums.snare) {
-        drums.snare.triggerAttackRelease('8n', Tone.now(), 0.7);
-      } else if (type === 'hihat' && drums.hihat) {
-        drums.hihat.triggerAttackRelease('32n', Tone.now());
-      }
-    } catch {
-      // Ignore
-    }
+      if (type === 'kick' && drums.kick) drums.kick.triggerAttackRelease('C1', '8n');
+      else if (type === 'snare' && drums.snare) drums.snare.triggerAttackRelease('8n', Tone.now(), 0.7);
+      else if (type === 'hihat' && drums.hihat) drums.hihat.triggerAttackRelease('32n', Tone.now());
+    } catch { /* ignore */ }
   }, [initialize]);
 
-  // Play melody sequence only
-  const playMelodySequence = useCallback(async (points: MelodyPoint[], bpm: number = 120) => {
+  // Play melody sequence only (for melody step preview)
+  const playMelodySequence = useCallback(async (points: MelodyPoint[], bpm: number = 120, tone?: MelodyTone) => {
     await initialize();
-    if (!melodySynthRef.current || points.length === 0) return;
+    const instrument = getMelodyInstrument(tone);
+    if (!instrument || points.length === 0) return;
 
-    const transport = Tone.getTransport();
-    transport.stop();
-    transport.cancel();
-    transport.bpm.value = bpm;
+    // Clear any previous scheduled timeouts
+    scheduledTimeoutsRef.current.forEach(clearTimeout);
+    scheduledTimeoutsRef.current = [];
 
     const sorted = [...points].sort((a, b) => a.x - b.x);
     const totalBeats = 8;
+    const beatDuration = 60 / bpm; // seconds per beat
 
     sorted.forEach((pt) => {
-      const beatTime = pt.x * totalBeats;
-      try {
-        const id = transport.schedule((t) => {
-          melodySynthRef.current?.triggerAttackRelease(pt.note, '8n', t);
-        }, `0:0:${beatTime * 2}`);
-        scheduledIdsRef.current.push(id);
-      } catch {
-        // Ignore
-      }
+      const timeInSeconds = pt.x * totalBeats * beatDuration;
+      const t = setTimeout(() => {
+        try {
+          instrument.triggerAttackRelease(pt.note, '8n');
+        } catch { /* ignore */ }
+      }, timeInSeconds * 1000);
+      scheduledTimeoutsRef.current.push(t);
     });
+  }, [initialize, getMelodyInstrument]);
 
-    transport.start();
-
-    const durationMs = (totalBeats / bpm) * 60 * 1000 + 500;
-    setTimeout(() => {
-      transport.stop();
-      transport.cancel();
-      scheduledIdsRef.current = [];
-    }, durationMs);
-  }, [initialize]);
-
-  // Play FULL composition — 8 bars with melody variations
+  // Play FULL composition — 8 bars, all layers, using setTimeout-based scheduling
   const playFullComposition = useCallback(async (
     melodyPoints: MelodyPoint[],
     drumPattern: DrumPattern | null,
@@ -390,25 +476,29 @@ export function useAudioEngine() {
     onProgress?: (progress: number) => void,
     onComplete?: () => void,
     scaleNotes?: string[],
+    tone?: MelodyTone,
   ) => {
     await initialize();
+
     if (isPlayingRef.current) {
       stopAll();
       return;
     }
 
-    const transport = Tone.getTransport();
-    transport.stop();
-    transport.cancel();
-    scheduledIdsRef.current = [];
-    transport.bpm.value = bpm;
+    // Clear previous
+    scheduledTimeoutsRef.current.forEach(clearTimeout);
+    scheduledTimeoutsRef.current = [];
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
 
-    const totalBars = 8; // 8 bars for longer duration
+    const instrument = getMelodyInstrument(tone);
+    const totalBars = 8;
     const beatsPerBar = 4;
-    const totalBeats = totalBars * beatsPerBar;
+    const beatDuration = 60 / bpm;
+    const barDuration = beatsPerBar * beatDuration;
+    const totalDuration = totalBars * barDuration;
 
     // --- Schedule Melody with VARIATIONS ---
-    if (melodySynthRef.current && melodyPoints.length > 0) {
+    if (instrument && melodyPoints.length > 0) {
       const notes = scaleNotes || [];
       for (let bar = 0; bar < totalBars; bar++) {
         const variationType = VARIATION_SEQUENCE[bar % VARIATION_SEQUENCE.length];
@@ -417,55 +507,42 @@ export function useAudioEngine() {
           : [...melodyPoints].sort((a, b) => a.x - b.x);
 
         variation.forEach((pt) => {
-          const barOffset = bar * beatsPerBar;
-          const beatInBar = pt.x * beatsPerBar;
-          const totalBeat = barOffset + beatInBar;
-          const barNum = Math.floor(totalBeat / beatsPerBar);
-          const beatInBarNum = totalBeat % beatsPerBar;
-          const quarterBeat = Math.floor(beatInBarNum);
-          const sixteenth = Math.round((beatInBarNum - quarterBeat) * 4);
-          const timeStr = `${barNum}:${quarterBeat}:${sixteenth}`;
-          try {
-            const id = transport.schedule((t) => {
-              melodySynthRef.current?.triggerAttackRelease(pt.note, '8n', t);
-            }, timeStr);
-            scheduledIdsRef.current.push(id);
-          } catch {
-            // Ignore
-          }
+          const timeInBar = pt.x * barDuration;
+          const absoluteTime = bar * barDuration + timeInBar;
+          const t = setTimeout(() => {
+            try {
+              instrument.triggerAttackRelease(pt.note, '8n');
+            } catch { /* ignore */ }
+          }, absoluteTime * 1000);
+          scheduledTimeoutsRef.current.push(t);
         });
       }
     }
 
-    // --- Schedule Drums (if pattern exists) ---
+    // --- Schedule Drums ---
     if (drumPattern && drumSynthsRef.current.kick) {
       const drums = drumSynthsRef.current;
+      const sixteenthDuration = barDuration / 16;
       for (let bar = 0; bar < totalBars; bar++) {
         for (let step = 0; step < 16; step++) {
-          const timeStr = `${bar}:${Math.floor(step / 4)}:${step % 4}`;
+          const absoluteTime = bar * barDuration + step * sixteenthDuration;
           if (drumPattern.pattern[0]?.[step]) {
-            try {
-              const id = transport.schedule((t) => {
-                drums.kick?.triggerAttackRelease('C1', '8n', t);
-              }, timeStr);
-              scheduledIdsRef.current.push(id);
-            } catch { /* ignore */ }
+            const t = setTimeout(() => {
+              try { drums.kick?.triggerAttackRelease('C1', '8n'); } catch { /* ignore */ }
+            }, absoluteTime * 1000);
+            scheduledTimeoutsRef.current.push(t);
           }
           if (drumPattern.pattern[1]?.[step]) {
-            try {
-              const id = transport.schedule((t) => {
-                drums.snare?.triggerAttackRelease('16n', t, 0.7);
-              }, timeStr);
-              scheduledIdsRef.current.push(id);
-            } catch { /* ignore */ }
+            const t = setTimeout(() => {
+              try { drums.snare?.triggerAttackRelease('16n', Tone.now(), 0.7); } catch { /* ignore */ }
+            }, absoluteTime * 1000);
+            scheduledTimeoutsRef.current.push(t);
           }
           if (drumPattern.pattern[2]?.[step]) {
-            try {
-              const id = transport.schedule((t) => {
-                drums.hihat?.triggerAttackRelease('32n', t);
-              }, timeStr);
-              scheduledIdsRef.current.push(id);
-            } catch { /* ignore */ }
+            const t = setTimeout(() => {
+              try { drums.hihat?.triggerAttackRelease('32n', Tone.now()); } catch { /* ignore */ }
+            }, absoluteTime * 1000);
+            scheduledTimeoutsRef.current.push(t);
           }
         }
       }
@@ -480,13 +557,11 @@ export function useAudioEngine() {
       synth.volume.value = -30 + (layer.volume / 100) * 24;
       for (let bar = 0; bar < totalBars; bar++) {
         const chord = chords[bar % chords.length];
-        const timeStr = `${bar}:0:0`;
-        try {
-          const id = transport.schedule((t) => {
-            synth.triggerAttackRelease(chord, '1n', t);
-          }, timeStr);
-          scheduledIdsRef.current.push(id);
-        } catch { /* ignore */ }
+        const absoluteTime = bar * barDuration;
+        const t = setTimeout(() => {
+          try { synth.triggerAttackRelease(chord, '1n'); } catch { /* ignore */ }
+        }, absoluteTime * 1000);
+        scheduledTimeoutsRef.current.push(t);
       }
     });
 
@@ -496,72 +571,64 @@ export function useAudioEngine() {
       for (let bar = 0; bar < totalBars; bar++) {
         for (let beat = 0; beat < 2; beat++) {
           const noteIdx = (bar * 2 + beat) % bassNotes.length;
-          const timeStr = `${bar}:${beat * 2}:0`;
-          try {
-            const id = transport.schedule((t) => {
-              bassSynthRef.current?.triggerAttackRelease(bassNotes[noteIdx], '2n', t);
-            }, timeStr);
-            scheduledIdsRef.current.push(id);
-          } catch { /* ignore */ }
+          const absoluteTime = bar * barDuration + beat * 2 * beatDuration;
+          const t = setTimeout(() => {
+            try { bassSynthRef.current?.triggerAttackRelease(bassNotes[noteIdx], '2n'); } catch { /* ignore */ }
+          }, absoluteTime * 1000);
+          scheduledTimeoutsRef.current.push(t);
         }
       }
     }
 
     // --- Progress tracking ---
-    const totalDurationSec = (totalBeats / bpm) * 60;
-    let progressInterval: ReturnType<typeof setInterval> | null = null;
     const startTime = Date.now();
-
     if (onProgress) {
-      progressInterval = setInterval(() => {
+      progressIntervalRef.current = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000;
-        const prog = Math.min(1, elapsed / totalDurationSec);
+        const prog = Math.min(1, elapsed / totalDuration);
         onProgress(prog);
-        if (prog >= 1) {
-          if (progressInterval) clearInterval(progressInterval);
+        if (prog >= 1 && progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
         }
       }, 50);
     }
 
     // Schedule stop
-    const stopTimeStr = `${totalBars}:0:0`;
-    try {
-      const id = transport.schedule(() => {
-        transport.stop();
-        isPlayingRef.current = false;
-        setIsPlaying(false);
-        scheduledIdsRef.current = [];
-        if (progressInterval) clearInterval(progressInterval);
-        onProgress?.(1);
-        onComplete?.();
-      }, stopTimeStr);
-      scheduledIdsRef.current.push(id);
-    } catch { /* ignore */ }
+    const stopTimeout = setTimeout(() => {
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      onProgress?.(1);
+      onComplete?.();
+    }, totalDuration * 1000 + 200);
+    scheduledTimeoutsRef.current.push(stopTimeout);
 
     isPlayingRef.current = true;
     setIsPlaying(true);
-    transport.start();
-  }, [initialize]);
+  }, [initialize, getMelodyInstrument]);
 
   const stopAll = useCallback(() => {
-    try {
-      const transport = Tone.getTransport();
-      transport.stop();
-      transport.cancel();
-      scheduledIdsRef.current = [];
-      isPlayingRef.current = false;
-      setIsPlaying(false);
-      stopContinuousPreview();
-    } catch {
-      // Ignore
+    scheduledTimeoutsRef.current.forEach(clearTimeout);
+    scheduledTimeoutsRef.current = [];
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
-  }, [stopContinuousPreview]);
+    stopSampleMelody();
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+  }, [stopSampleMelody]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopAll();
-      melodySynthRef.current?.dispose();
+      Object.values(samplersRef.current).forEach(s => { try { s.dispose(); } catch { /* ignore */ } });
+      electronicSynthRef.current?.dispose();
       drumSynthsRef.current.kick?.dispose();
       drumSynthsRef.current.snare?.dispose();
       drumSynthsRef.current.hihat?.dispose();
@@ -577,6 +644,9 @@ export function useAudioEngine() {
   return {
     initialize,
     playNote,
+    setTone,
+    playSampleMelody,
+    stopSampleMelody,
     previewInstrument,
     startContinuousPreview,
     stopContinuousPreview,
@@ -586,5 +656,6 @@ export function useAudioEngine() {
     playFullComposition,
     stopAll,
     isPlaying,
+    samplesLoaded,
   };
 }

@@ -13,7 +13,10 @@ export interface Theme {
   color: string;
   accentColor: string;
   image: string;
+  defaultTone: MelodyTone;
 }
+
+export type MelodyTone = 'piano' | 'violin' | 'flute' | 'guitar' | 'electronic';
 
 export interface MelodyPoint {
   x: number;
@@ -44,6 +47,7 @@ export type CompositionStep = 'theme' | 'melody' | 'rhythm' | 'harmony' | 'mix' 
 interface CompositionState {
   currentStep: CompositionStep;
   selectedTheme: Theme | null;
+  melodyTone: MelodyTone;
   melodyPoints: MelodyPoint[];
   selectedMelodyOption: 'draw' | 'ai-1' | 'ai-2' | 'ai-3';
   selectedDrumPattern: DrumPattern | null;
@@ -60,6 +64,7 @@ interface CompositionContextType extends CompositionState {
   nextStep: () => void;
   prevStep: () => void;
   selectTheme: (theme: Theme) => void;
+  setMelodyTone: (tone: MelodyTone) => void;
   setMelodyPoints: (points: MelodyPoint[]) => void;
   setSelectedMelodyOption: (option: 'draw' | 'ai-1' | 'ai-2' | 'ai-3') => void;
   selectDrumPattern: (pattern: DrumPattern) => void;
@@ -87,6 +92,7 @@ const defaultHarmonyLayers: HarmonyLayer[] = [
 const initialState: CompositionState = {
   currentStep: 'theme',
   selectedTheme: null,
+  melodyTone: 'piano',
   melodyPoints: [],
   selectedMelodyOption: 'draw',
   selectedDrumPattern: null,
@@ -131,8 +137,13 @@ export function CompositionProvider({ children }: { children: React.ReactNode })
     setState(s => ({
       ...s,
       selectedTheme: theme,
+      melodyTone: theme.defaultTone,
       bpm: Math.round((theme.bpmRange[0] + theme.bpmRange[1]) / 2),
     }));
+  }, []);
+
+  const setMelodyTone = useCallback((tone: MelodyTone) => {
+    setState(s => ({ ...s, melodyTone: tone }));
   }, []);
 
   const setMelodyPoints = useCallback((points: MelodyPoint[]) => {
@@ -199,6 +210,7 @@ export function CompositionProvider({ children }: { children: React.ReactNode })
         nextStep,
         prevStep,
         selectTheme,
+        setMelodyTone,
         setMelodyPoints,
         setSelectedMelodyOption,
         selectDrumPattern,

@@ -20,9 +20,12 @@ const VARIATION_LABELS = [
 export default function PreviewStep() {
   const {
     selectedTheme, harmonyLayers, selectedDrumPattern,
-    melodyPoints, bpm, resetComposition,
+    melodyPoints, bpm, resetComposition, melodyTone,
   } = useComposition();
-  const { playFullComposition, stopAll, isPlaying: audioIsPlaying } = useAudioEngine();
+  const { playFullComposition, stopAll, isPlaying: audioIsPlaying, setTone } = useAudioEngine();
+
+  // Sync tone
+  useEffect(() => { setTone(melodyTone); }, [melodyTone, setTone]);
 
   const [progress, setProgress] = useState(0);
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -160,6 +163,7 @@ export default function PreviewStep() {
         (prog) => setProgress(prog),
         () => setProgress(0),
         scaleNotes,
+        melodyTone,
       );
     }
   };

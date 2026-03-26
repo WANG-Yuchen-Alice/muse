@@ -2,22 +2,24 @@
  * Muse Landing Page — "Liquid Cosmos" Design
  * Deep dark void background, bioluminescent accents, frosted glass panels
  * Font: Space Grotesk (display) + DM Sans (body)
+ * 
+ * Messaging: "Create your first BGM" — feelings-first, hands-on, no knowledge required
  */
 import { motion, type Easing } from 'framer-motion';
 import { useLocation } from 'wouter';
-import { Music, Sparkles, Layers, Share2, ArrowRight, Palette, PenTool, Drum, Guitar, Wand2, Play } from 'lucide-react';
+import { Music, Sparkles, Layers, Share2, ArrowRight, Palette, PenTool, Drum, Guitar, Wand2, Play, Heart, Headphones, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/hero-cosmic-bg-dQF7KEjpdvbhp2dhHCd8oj.webp';
 const LOGO = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp';
 
 const steps = [
-  { icon: Palette, title: 'Choose a Theme', desc: 'Pick a mood — Ocean Sunset, Bamboo Forest, City Neon, and more. The theme sets your musical palette.', color: '#00E5FF' },
-  { icon: PenTool, title: 'Sketch the Melody', desc: 'Draw a line on the canvas. Y-axis is pitch, X-axis is time. Hear your melody come alive as you draw.', color: '#FF006E' },
-  { icon: Drum, title: 'Choose the Rhythm', desc: 'AI suggests drum patterns that complement your melody. Pick one, adjust the density.', color: '#FFB800' },
-  { icon: Guitar, title: 'Add Harmony', desc: 'Toggle instruments on and off — strings, piano, synth pads. AI ensures everything harmonizes.', color: '#2DD4BF' },
-  { icon: Wand2, title: 'AI Completes the Mix', desc: 'One tap: AI generates the bass line, adds transitions, and produces a polished final mix.', color: '#A78BFA' },
-  { icon: Share2, title: 'Preview & Share', desc: 'Watch your composition come alive with layered visualization. Export and share to the world.', color: '#FF7E7E' },
+  { icon: Palette, title: 'Set the Mood', desc: 'How are you feeling? Pick a vibe — Ocean Sunset, Bamboo Forest, City Neon. Your mood becomes your musical palette.', color: '#00E5FF' },
+  { icon: PenTool, title: 'Draw Your Melody', desc: 'No notes to read. Just draw a line — up for higher, down for lower. Hear it play as your finger moves.', color: '#FF006E' },
+  { icon: Drum, title: 'Add a Beat', desc: 'Pick a rhythm that feels right, or skip drums entirely. Your music, your rules.', color: '#FFB800' },
+  { icon: Guitar, title: 'Layer Instruments', desc: 'Toggle on strings, piano, guitar — hear them blend in real-time. Drag to adjust the mix.', color: '#2DD4BF' },
+  { icon: Wand2, title: 'AI Polishes It', desc: 'One tap: AI adds a bass line, smooths transitions, and turns your sketch into a finished track.', color: '#A78BFA' },
+  { icon: Share2, title: 'Play & Share', desc: 'Listen to YOUR composition. Watch the layers animate. Share it with the world.', color: '#FF7E7E' },
 ];
 
 const EASE_OUT: Easing = "easeOut";
@@ -47,7 +49,7 @@ export default function Home() {
             onClick={() => navigate('/compose')}
             className="gradient-cosmic text-background font-semibold px-6 h-9 rounded-full border-0 hover:opacity-90 transition-opacity"
           >
-            Start Creating
+            Create Now
           </Button>
         </div>
       </nav>
@@ -94,37 +96,34 @@ export default function Home() {
 
         {/* Hero Content */}
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto pt-20">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="mb-6"
-          >
-            <div className="inline-flex items-center gap-2 glass-panel rounded-full px-4 py-2 mb-8">
-              <Sparkles className="w-4 h-4 text-amber-glow" style={{ color: '#FFB800' }} />
-              <span className="text-sm text-muted-foreground">Meta AI Hackathon 2026</span>
-            </div>
-          </motion.div>
-
           <motion.h1
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
             className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-[1.05] mb-6"
           >
-            <span className="text-foreground">Your AI</span>
+            <span className="text-foreground">Create Your</span>
             <br />
-            <span className="gradient-cosmic-text">Music Teacher</span>
+            <span className="gradient-cosmic-text">First BGM</span>
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
-            className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
+            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+            className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-4 leading-relaxed"
           >
-            Suno makes music <em>for</em> you. Muse teaches you to <em>make</em> music.
-            Compose layer by layer through a guided, beautiful flow — no music theory required.
+            Express your feelings with notes and create your very own background music.
+          </motion.p>
+
+          <motion.p
+            initial={{ opacity: 0, y: 25 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.45, ease: "easeOut" }}
+            className="text-base sm:text-lg max-w-xl mx-auto mb-10 leading-relaxed"
+            style={{ color: '#00E5FF' }}
+          >
+            With Muse, your music tutor — no knowledge required, just your feelings and mood.
           </motion.p>
 
           <motion.div
@@ -136,10 +135,10 @@ export default function Home() {
             <Button
               onClick={() => navigate('/compose')}
               size="lg"
-              className="gradient-cosmic text-background font-semibold px-8 h-12 rounded-full border-0 text-base hover:opacity-90 transition-all hover:scale-105 glow-cyan"
+              className="gradient-cosmic text-background font-semibold px-8 h-14 rounded-full border-0 text-lg hover:opacity-90 transition-all hover:scale-105 glow-cyan"
             >
               <Play className="w-5 h-5 mr-2" />
-              Start Composing — Free
+              Start Creating — It's Free
             </Button>
             <Button
               variant="outline"
@@ -153,21 +152,21 @@ export default function Home() {
             </Button>
           </motion.div>
 
-          {/* Stats */}
+          {/* Taglines */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1, delay: 1 }}
-            className="mt-16 flex items-center justify-center gap-8 sm:gap-16"
+            className="mt-16 flex items-center justify-center gap-6 sm:gap-12"
           >
             {[
-              { label: 'No Music Theory', icon: '🎓' },
-              { label: '2 Min to Create', icon: '⚡' },
-              { label: '"I Made This"', icon: '🎵' },
+              { label: 'No Music Knowledge', icon: Heart, color: '#FF006E' },
+              { label: '2 Minutes to Create', icon: Zap, color: '#FFB800' },
+              { label: '"I Made This!"', icon: Headphones, color: '#00E5FF' },
             ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-2xl mb-1">{stat.icon}</div>
-                <div className="text-xs sm:text-sm text-muted-foreground">{stat.label}</div>
+              <div key={stat.label} className="flex items-center gap-2">
+                <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
+                <span className="text-xs sm:text-sm text-muted-foreground">{stat.label}</span>
               </div>
             ))}
           </motion.div>
@@ -189,6 +188,30 @@ export default function Home() {
         </motion.div>
       </section>
 
+      {/* "Why Muse?" — Emotional hook */}
+      <section className="py-20 sm:py-28 relative">
+        <div className="container max-w-3xl mx-auto text-center">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-100px' }}
+          >
+            <motion.p variants={fadeUp} custom={0} className="text-lg sm:text-xl text-muted-foreground leading-relaxed mb-8">
+              Ever had a melody stuck in your head but no way to get it out?
+            </motion.p>
+            <motion.p variants={fadeUp} custom={1} className="text-lg sm:text-xl text-muted-foreground leading-relaxed mb-8">
+              Ever wished you could turn a <em>feeling</em> into a song?
+            </motion.p>
+            <motion.h2 variants={fadeUp} custom={2} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold">
+              Muse turns your <span className="gradient-cosmic-text">emotions into music</span>
+            </motion.h2>
+            <motion.p variants={fadeUp} custom={3} className="text-muted-foreground text-base mt-6 max-w-lg mx-auto">
+              No sheet music. No complex software. Just pick a mood, draw a line, and hear your feelings come alive — layer by layer.
+            </motion.p>
+          </motion.div>
+        </div>
+      </section>
+
       {/* How It Works */}
       <section id="how-it-works" className="py-24 sm:py-32 relative">
         <div className="container">
@@ -203,10 +226,10 @@ export default function Home() {
               <span className="text-sm text-muted-foreground">6 Simple Steps</span>
             </motion.div>
             <motion.h2 variants={fadeUp} custom={1} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-              Build Music <span className="gradient-cosmic-text">Layer by Layer</span>
+              From Feeling to <span className="gradient-cosmic-text">Finished Track</span>
             </motion.h2>
             <motion.p variants={fadeUp} custom={2} className="text-muted-foreground text-lg max-w-xl mx-auto">
-              No blank timeline. No text prompt. Just a guided, beautiful flow from mood to masterpiece.
+              Muse guides you step by step. Each layer adds depth. You make every creative choice.
             </motion.p>
           </motion.div>
 
@@ -238,7 +261,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Value Proposition */}
+      {/* What Makes Muse Different */}
       <section className="py-24 sm:py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-background via-void-light/30 to-background" />
         <div className="container relative">
@@ -249,11 +272,12 @@ export default function Home() {
             className="max-w-4xl mx-auto"
           >
             <motion.div variants={fadeUp} custom={0} className="text-center mb-16">
-              <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
-                Not a Generator. Not a DAW.
-                <br />
-                <span className="gradient-cosmic-text">A New Category.</span>
+              <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+                Why Muse Feels <span className="gradient-cosmic-text">Different</span>
               </h2>
+              <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+                Other tools make music for you or overwhelm you. Muse is the sweet spot.
+              </p>
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -261,22 +285,22 @@ export default function Home() {
                 {
                   title: 'AI Generators',
                   subtitle: 'Suno, Udio',
-                  problem: 'Type a prompt, get a song. Zero creative involvement.',
-                  verdict: 'You\'re a consumer',
+                  problem: 'Type a prompt, get a song. You never touch the music.',
+                  verdict: 'You\'re a listener',
                   color: '#FF006E',
                 },
                 {
                   title: 'Muse',
-                  subtitle: 'The Middle Path',
-                  problem: 'AI guides you step by step. You make every creative decision.',
+                  subtitle: 'Your Music Tutor',
+                  problem: 'You choose the mood, draw the melody, pick the instruments. AI helps you finish.',
                   verdict: 'You\'re the creator',
                   color: '#00E5FF',
                   highlighted: true,
                 },
                 {
                   title: 'DAWs',
-                  subtitle: 'GarageBand, BandLab',
-                  problem: 'Blank timeline, 100+ buttons. Most users never finish a track.',
+                  subtitle: 'GarageBand, FL Studio',
+                  problem: 'Blank timeline, 100+ buttons. Most people quit before finishing a track.',
                   verdict: 'You\'re overwhelmed',
                   color: '#FFB800',
                 },
@@ -309,7 +333,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Duolingo Comparison */}
+      {/* Social Proof / Use Cases */}
       <section className="py-24 sm:py-32">
         <div className="container">
           <motion.div
@@ -319,32 +343,31 @@ export default function Home() {
             className="text-center max-w-3xl mx-auto"
           >
             <motion.h2 variants={fadeUp} custom={0} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
-              The <span className="gradient-cosmic-text">Duolingo</span> Model for Music
+              Music for <span className="gradient-cosmic-text">Every Moment</span>
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-muted-foreground text-lg mb-12">
-              Duolingo proved 50M people want to learn languages through guided play.
-              Muse brings the same model to music composition.
+              Create BGM for your videos, podcasts, study sessions, or just for fun.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={2} className="glass-panel rounded-2xl p-8 text-left">
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div className="font-display font-semibold text-muted-foreground">Metric</div>
-                <div className="font-display font-semibold" style={{ color: '#2DD4BF' }}>Duolingo</div>
-                <div className="font-display font-semibold" style={{ color: '#00E5FF' }}>Muse Opportunity</div>
-
-                <div className="text-muted-foreground border-t border-border/30 pt-3">DAU</div>
-                <div className="text-foreground border-t border-border/30 pt-3">50M+</div>
-                <div className="text-foreground border-t border-border/30 pt-3">100M+ BandLab users</div>
-
-                <div className="text-muted-foreground border-t border-border/30 pt-3">Revenue</div>
-                <div className="text-foreground border-t border-border/30 pt-3">$600M+/yr</div>
-                <div className="text-foreground border-t border-border/30 pt-3">CAGR 8-10%</div>
-
-                <div className="text-muted-foreground border-t border-border/30 pt-3">Key Insight</div>
-                <div className="text-foreground border-t border-border/30 pt-3">Guided learning beats textbooks</div>
-                <div className="text-foreground border-t border-border/30 pt-3">Guided creation beats blank DAW</div>
-              </div>
-            </motion.div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { emoji: '🎬', label: 'Video BGM', desc: 'YouTube, TikTok, Reels' },
+                { emoji: '🎙️', label: 'Podcast Intros', desc: 'Unique show identity' },
+                { emoji: '📚', label: 'Study Music', desc: 'Focus & concentration' },
+                { emoji: '🎮', label: 'Game Soundtracks', desc: 'Indie game vibes' },
+              ].map((useCase, i) => (
+                <motion.div
+                  key={useCase.label}
+                  variants={fadeUp}
+                  custom={i + 2}
+                  className="glass-panel rounded-2xl p-5 text-center group hover:border-white/15 transition-all duration-500"
+                >
+                  <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-300">{useCase.emoji}</div>
+                  <h3 className="font-display text-sm font-semibold text-foreground mb-1">{useCase.label}</h3>
+                  <p className="text-xs text-muted-foreground">{useCase.desc}</p>
+                </motion.div>
+              ))}
+            </div>
           </motion.div>
         </div>
       </section>
@@ -361,11 +384,14 @@ export default function Home() {
             whileInView="visible"
             viewport={{ once: true }}
           >
-            <motion.h2 variants={fadeUp} custom={0} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
-              Ready to Compose?
+            <motion.h2 variants={fadeUp} custom={0} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+              Your First BGM is
+            </motion.h2>
+            <motion.h2 variants={fadeUp} custom={0.5} className="font-display text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+              <span className="gradient-cosmic-text">2 Minutes Away</span>
             </motion.h2>
             <motion.p variants={fadeUp} custom={1} className="text-muted-foreground text-lg mb-8 max-w-lg mx-auto">
-              Create your first composition in under 2 minutes. No account needed. No music theory required.
+              No account. No music theory. No downloads. Just open Muse and start creating.
             </motion.p>
             <motion.div variants={fadeUp} custom={2}>
               <Button
@@ -373,7 +399,7 @@ export default function Home() {
                 size="lg"
                 className="gradient-cosmic text-background font-semibold px-10 h-14 rounded-full border-0 text-lg hover:opacity-90 transition-all hover:scale-105 glow-cyan"
               >
-                Start Creating — It's Free
+                Create My First BGM
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </motion.div>
@@ -387,12 +413,10 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <img src={LOGO} alt="Muse" className="w-6 h-6" />
             <span className="font-display text-sm font-semibold text-foreground">Muse</span>
-            <span className="text-xs text-muted-foreground">· AI Music Composition</span>
+            <span className="text-xs text-muted-foreground">· Your AI Music Tutor</span>
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Built with Meta MusicGen</span>
-            <span>·</span>
-            <span>APAC New Bets Hackathon 2026</span>
+            <span>Powered by Meta MusicGen</span>
           </div>
         </div>
       </footer>
