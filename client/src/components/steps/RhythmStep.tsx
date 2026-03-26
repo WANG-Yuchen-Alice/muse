@@ -18,6 +18,7 @@ const DRUM_COLORS = ['#00E5FF', '#FF006E', '#FFB800'];
 const NO_DRUMS_PATTERN = {
   id: 'no-drums',
   name: 'No Drums',
+  emoji: '🔇',
   description: 'Skip drums entirely — let melody and harmony shine',
   density: 0,
   pattern: [
@@ -97,6 +98,7 @@ export default function RhythmStep() {
                   <div>
                     <div className="flex items-center gap-2">
                       {isNoDrumsOption && <VolumeX className="w-4 h-4 text-muted-foreground" />}
+                      {!isNoDrumsOption && 'emoji' in pattern && <span className="text-lg">{(pattern as any).emoji}</span>}
                       <h3 className="font-display font-semibold text-foreground">{pattern.name}</h3>
                       {isSelected && (
                         <motion.div

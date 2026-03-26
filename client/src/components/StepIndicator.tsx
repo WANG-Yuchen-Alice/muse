@@ -12,20 +12,32 @@ const STEP_CONFIG: { id: CompositionStep; icon: React.ElementType; label: string
 ];
 
 export default function StepIndicator() {
-  const { stepIndex } = useComposition();
+  const { stepIndex, setStep } = useComposition();
+
+  const handleStepClick = (step: CompositionStep, index: number) => {
+    // Allow clicking on completed steps or the current step to navigate back
+    if (index <= stepIndex) {
+      setStep(step);
+    }
+  };
 
   return (
     <div className="flex items-center gap-1.5 sm:gap-2">
       {STEP_CONFIG.map((step, i) => {
         const isActive = i === stepIndex;
         const isComplete = i < stepIndex;
+        const isClickable = i <= stepIndex;
         const Icon = step.icon;
 
         return (
           <div key={step.id} className="flex items-center gap-1.5 sm:gap-2">
             <div className="relative flex items-center justify-center">
-              <motion.div
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-300"
+              <motion.button
+                onClick={() => handleStepClick(step.id, i)}
+                disabled={!isClickable}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                  isClickable ? 'cursor-pointer' : 'cursor-default'
+                }`}
                 style={{
                   background: isActive
                     ? `${step.color}25`
@@ -40,6 +52,8 @@ export default function StepIndicator() {
                 }}
                 animate={isActive ? { scale: [1, 1.1, 1] } : {}}
                 transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                whileHover={isClickable && !isActive ? { scale: 1.15 } : {}}
+                whileTap={isClickable ? { scale: 0.9 } : {}}
               >
                 <Icon
                   className="w-3.5 h-3.5"
@@ -47,7 +61,7 @@ export default function StepIndicator() {
                     color: isActive || isComplete ? step.color : 'oklch(0.5 0.015 280)',
                   }}
                 />
-              </motion.div>
+              </motion.button>
               <span className="hidden lg:block absolute -bottom-5 text-[10px] whitespace-nowrap" style={{ color: isActive ? step.color : 'oklch(0.5 0.015 280)' }}>
                 {step.label}
               </span>

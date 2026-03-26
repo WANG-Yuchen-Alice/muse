@@ -1,8 +1,9 @@
 /*
  * Audio Engine Hook — Tone.js integration with real instrument samples
- * Uses Tone.Sampler for piano, violin, flute, guitar (from tonejs-instruments)
+ * Uses Tone.Sampler for melody (piano, violin, flute, guitar)
+ * Uses Tone.Sampler for harmony layers too (real piano/cello/harp/guitar samples)
  * Falls back to Tone.Synth for electronic tone
- * All scheduling uses seconds-based timing to avoid "Start time" errors
+ * All scheduling uses setTimeout (seconds-based) to avoid "Start time" errors
  */
 import { useRef, useCallback, useEffect, useState } from 'react';
 import * as Tone from 'tone';
@@ -12,7 +13,7 @@ import type { SampleNote } from '@/lib/themes';
 // CDN base for instrument samples
 const SAMPLES_BASE = 'https://nbrosowsky.github.io/tonejs-instruments/samples';
 
-// Minimal sample maps for each instrument (Tone.Sampler interpolates between these)
+// Minimal sample maps — Tone.Sampler interpolates between these
 const SAMPLE_MAPS: Record<string, Record<string, string>> = {
   piano: {
     A3: `${SAMPLES_BASE}/piano/A3.mp3`,
@@ -64,7 +65,7 @@ const SAMPLE_MAPS: Record<string, Record<string, string>> = {
     G3: `${SAMPLES_BASE}/guitar-acoustic/G3.mp3`,
     G4: `${SAMPLES_BASE}/guitar-acoustic/G4.mp3`,
   },
-  // Harmony instruments
+  // For harmony: cello for strings layer, harp for ambient texture
   cello: {
     A2: `${SAMPLES_BASE}/cello/A2.mp3`,
     A3: `${SAMPLES_BASE}/cello/A3.mp3`,
@@ -86,8 +87,8 @@ const SAMPLE_MAPS: Record<string, Record<string, string>> = {
 // Chord progressions per key for harmony layers
 const CHORD_PROGRESSIONS: Record<string, string[][]> = {
   'D-major': [
-    ['D4', 'F#4', 'A4'], ['G3', 'B3', 'D4'], ['A3', 'C#4', 'E4'], ['D4', 'F#4', 'A4'],
-    ['B3', 'D4', 'F#4'], ['G3', 'B3', 'D4'], ['A3', 'C#4', 'E4'], ['D3', 'F#3', 'A3'],
+    ['D3', 'F#3', 'A3'], ['G3', 'B3', 'D4'], ['A3', 'C#4', 'E4'], ['D3', 'F#3', 'A3'],
+    ['B2', 'D3', 'F#3'], ['G3', 'B3', 'D4'], ['A3', 'C#4', 'E4'], ['D3', 'F#3', 'A3'],
   ],
   'G-pentatonic': [
     ['G3', 'B3', 'D4'], ['E3', 'G3', 'B3'], ['A3', 'D4', 'E4'], ['G3', 'B3', 'D4'],
@@ -188,8 +189,17 @@ const VARIATION_SEQUENCE = [
   'inverted', 'rhythmic-shift', 'original', 'octave-up',
 ];
 
+// Map harmony layer IDs to sampler names for real instrument sounds
+const HARMONY_SAMPLER_MAP: Record<string, string> = {
+  strings: 'cello',   // Use cello samples for strings harmony
+  piano: 'piano',     // Use piano samples for piano harmony
+  synth: 'harp',      // Use harp samples for synth pad (ethereal quality)
+  guitar: 'guitar',   // Use guitar samples for guitar harmony
+};
+
 export function useAudioEngine() {
   const isInitializedRef = useRef(false);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
   const isPlayingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [samplesLoaded, setSamplesLoaded] = useState(false);
@@ -208,8 +218,6 @@ export function useAudioEngine() {
     hihat: Tone.MetalSynth | null;
   }>({ kick: null, snare: null, hihat: null });
 
-  // Harmony synths (PolySynth for chords)
-  const harmonySynthsRef = useRef<Record<string, Tone.PolySynth | null>>({});
   // Bass synth
   const bassSynthRef = useRef<Tone.Synth | null>(null);
 
@@ -227,105 +235,105 @@ export function useAudioEngine() {
   const sampleStopRef = useRef<(() => void) | null>(null);
 
   const initialize = useCallback(async () => {
+    // Prevent multiple simultaneous initializations
     if (isInitializedRef.current) return;
-    await Tone.start();
+    if (initPromiseRef.current) return initPromiseRef.current;
 
-    // Master effects chain
-    compressorRef.current = new Tone.Compressor(-18, 5).toDestination();
-    reverbRef.current = new Tone.Reverb({ decay: 3.0, wet: 0.3 }).connect(compressorRef.current);
-    delayRef.current = new Tone.FeedbackDelay('8n', 0.2).connect(reverbRef.current);
-    delayRef.current.wet.value = 0.15;
-    chorusRef.current = new Tone.Chorus(4, 2.5, 0.5).connect(reverbRef.current);
-    chorusRef.current.start();
+    const doInit = async () => {
+      try {
+        await Tone.start();
 
-    // Load real instrument samplers
-    const loadSampler = (name: string, samples: Record<string, string>, dest: Tone.ToneAudioNode): Promise<void> => {
-      return new Promise((resolve) => {
-        const sampler = new Tone.Sampler({
-          urls: samples,
-          onload: () => {
-            resolve();
-          },
-          onerror: () => {
-            resolve(); // Don't block on error
-          },
+        // Master effects chain
+        compressorRef.current = new Tone.Compressor(-18, 5).toDestination();
+        reverbRef.current = new Tone.Reverb({ decay: 3.0, wet: 0.3 }).connect(compressorRef.current);
+        delayRef.current = new Tone.FeedbackDelay('8n', 0.2).connect(reverbRef.current);
+        delayRef.current.wet.value = 0.15;
+        chorusRef.current = new Tone.Chorus(4, 2.5, 0.5).connect(reverbRef.current);
+        chorusRef.current.start();
+
+        // Load real instrument samplers
+        const loadSampler = (name: string, samples: Record<string, string>, dest: Tone.ToneAudioNode, vol: number = -6): Promise<void> => {
+          return new Promise((resolve) => {
+            const timeout = setTimeout(() => resolve(), 15000); // 15s timeout per sampler
+            try {
+              const sampler = new Tone.Sampler({
+                urls: samples,
+                onload: () => {
+                  clearTimeout(timeout);
+                  resolve();
+                },
+                onerror: () => {
+                  clearTimeout(timeout);
+                  resolve(); // Don't block on error
+                },
+                volume: vol,
+                release: 1.5,
+              }).connect(dest);
+              samplersRef.current[name] = sampler;
+            } catch {
+              clearTimeout(timeout);
+              resolve();
+            }
+          });
+        };
+
+        // Load all samplers in parallel
+        const loadPromises = Object.entries(SAMPLE_MAPS).map(([name, samples]) => {
+          const dest = ['violin', 'cello'].includes(name) ? chorusRef.current! : reverbRef.current!;
+          const vol = ['cello', 'harp'].includes(name) ? -8 : -6; // Slightly louder for harmony instruments
+          return loadSampler(name, samples, dest, vol);
+        });
+
+        // Electronic synth (no samples needed)
+        electronicSynthRef.current = new Tone.Synth({
+          oscillator: { type: 'fatsawtooth', spread: 20, count: 3 } as unknown as Tone.OmniOscillatorOptions,
+          envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 1.0 },
+          volume: -8,
+        }).connect(delayRef.current);
+
+        // Drum synths
+        drumSynthsRef.current.kick = new Tone.MembraneSynth({
+          pitchDecay: 0.08, octaves: 8,
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.002, decay: 0.5, sustain: 0.01, release: 0.5 },
           volume: -6,
-          release: 1.5,
-        }).connect(dest);
-        samplersRef.current[name] = sampler;
-      });
+        }).connect(compressorRef.current);
+
+        drumSynthsRef.current.snare = new Tone.NoiseSynth({
+          noise: { type: 'pink' },
+          envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.15 },
+          volume: -10,
+        }).connect(compressorRef.current);
+
+        drumSynthsRef.current.hihat = new Tone.MetalSynth({
+          envelope: { attack: 0.001, decay: 0.06, release: 0.02 },
+          harmonicity: 5.1, modulationIndex: 40, resonance: 5000, octaves: 1.5,
+          volume: -18,
+        }).connect(compressorRef.current);
+
+        // Bass synth
+        bassSynthRef.current = new Tone.Synth({
+          oscillator: { type: 'fatsine', spread: 10, count: 2 } as unknown as Tone.OmniOscillatorOptions,
+          envelope: { attack: 0.04, decay: 0.4, sustain: 0.6, release: 0.6 },
+          volume: -8,
+        }).connect(compressorRef.current);
+
+        isInitializedRef.current = true;
+
+        // Wait for all samplers to load (with global timeout)
+        await Promise.race([
+          Promise.all(loadPromises),
+          new Promise<void>(resolve => setTimeout(resolve, 20000)), // 20s global timeout
+        ]);
+        setSamplesLoaded(true);
+      } catch (err) {
+        console.warn('Audio engine init error:', err);
+        isInitializedRef.current = true; // Mark as initialized even on error to prevent retries
+      }
     };
 
-    // Load all samplers in parallel
-    const loadPromises = Object.entries(SAMPLE_MAPS).map(([name, samples]) => {
-      const dest = ['violin', 'cello'].includes(name) ? chorusRef.current! : reverbRef.current!;
-      return loadSampler(name, samples, dest);
-    });
-
-    // Electronic synth (no samples needed)
-    electronicSynthRef.current = new Tone.Synth({
-      oscillator: { type: 'fatsawtooth', spread: 20, count: 3 } as unknown as Tone.OmniOscillatorOptions,
-      envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 1.0 },
-      volume: -8,
-    }).connect(delayRef.current);
-
-    // Drum synths
-    drumSynthsRef.current.kick = new Tone.MembraneSynth({
-      pitchDecay: 0.08, octaves: 8,
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.002, decay: 0.5, sustain: 0.01, release: 0.5 },
-      volume: -6,
-    }).connect(compressorRef.current);
-
-    drumSynthsRef.current.snare = new Tone.NoiseSynth({
-      noise: { type: 'pink' },
-      envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.15 },
-      volume: -10,
-    }).connect(compressorRef.current);
-
-    drumSynthsRef.current.hihat = new Tone.MetalSynth({
-      envelope: { attack: 0.001, decay: 0.06, release: 0.02 },
-      harmonicity: 5.1, modulationIndex: 40, resonance: 5000, octaves: 1.5,
-      volume: -18,
-    }).connect(compressorRef.current);
-
-    // Harmony PolySynths — using richer oscillators
-    harmonySynthsRef.current['strings'] = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'fatsawtooth', spread: 40, count: 3 } as unknown as Tone.OmniOscillatorOptions,
-      envelope: { attack: 0.6, decay: 0.8, sustain: 0.8, release: 2.0 },
-      volume: -16,
-    }).connect(chorusRef.current);
-
-    harmonySynthsRef.current['piano'] = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'fattriangle', spread: 10, count: 3 } as unknown as Tone.OmniOscillatorOptions,
-      envelope: { attack: 0.005, decay: 1.0, sustain: 0.1, release: 1.2 },
-      volume: -10,
-    }).connect(reverbRef.current);
-
-    harmonySynthsRef.current['synth'] = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'fatsine', spread: 30, count: 3 } as unknown as Tone.OmniOscillatorOptions,
-      envelope: { attack: 0.8, decay: 1.5, sustain: 0.7, release: 3.0 },
-      volume: -16,
-    }).connect(chorusRef.current);
-
-    harmonySynthsRef.current['guitar'] = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'fatsquare', spread: 15, count: 2 } as unknown as Tone.OmniOscillatorOptions,
-      envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 0.8 },
-      volume: -12,
-    }).connect(reverbRef.current);
-
-    // Bass synth
-    bassSynthRef.current = new Tone.Synth({
-      oscillator: { type: 'fatsine', spread: 10, count: 2 } as unknown as Tone.OmniOscillatorOptions,
-      envelope: { attack: 0.04, decay: 0.4, sustain: 0.6, release: 0.6 },
-      volume: -8,
-    }).connect(compressorRef.current);
-
-    isInitializedRef.current = true;
-
-    // Wait for all samplers to load
-    await Promise.all(loadPromises);
-    setSamplesLoaded(true);
+    initPromiseRef.current = doInit();
+    return initPromiseRef.current;
   }, []);
 
   // Get the right instrument for the current tone
@@ -333,6 +341,13 @@ export function useAudioEngine() {
     const t = tone || currentToneRef.current;
     if (t === 'electronic') return electronicSynthRef.current;
     return samplersRef.current[t] || electronicSynthRef.current;
+  }, []);
+
+  // Get sampler for a harmony layer — uses REAL samples instead of PolySynth
+  const getHarmonySampler = useCallback((layerId: string): Tone.Sampler | null => {
+    const samplerName = HARMONY_SAMPLER_MAP[layerId];
+    if (!samplerName) return null;
+    return samplersRef.current[samplerName] || null;
   }, []);
 
   // Play a single note (for melody drawing)
@@ -396,28 +411,38 @@ export function useAudioEngine() {
     }
   }, []);
 
-  // Preview an instrument sound (for harmony step)
+  // Preview an instrument sound (for harmony step) — uses REAL sampler
   const previewInstrument = useCallback(async (instrumentId: string, notes?: string[]) => {
     await initialize();
-    const synth = harmonySynthsRef.current[instrumentId];
-    if (!synth) return;
+    const sampler = getHarmonySampler(instrumentId);
+    if (!sampler) return;
     const previewNotes = notes || ['C4', 'E4', 'G4'];
     try {
-      synth.triggerAttackRelease(previewNotes, '2n');
+      // Play each note of the chord with slight stagger for a more natural sound
+      previewNotes.forEach((note, i) => {
+        setTimeout(() => {
+          try { sampler.triggerAttackRelease(note, '2n'); } catch { /* ignore */ }
+        }, i * 50); // 50ms stagger between chord notes
+      });
     } catch { /* ignore */ }
-  }, [initialize]);
+  }, [initialize, getHarmonySampler]);
 
-  // Start continuous harmony preview
+  // Start continuous harmony preview — uses REAL sampler
   const startContinuousPreview = useCallback(async (instrumentId: string, volume: number, notes?: string[]) => {
     await initialize();
-    const synth = harmonySynthsRef.current[instrumentId];
-    if (!synth) return;
-    synth.volume.value = -30 + (volume / 100) * 24;
+    const sampler = getHarmonySampler(instrumentId);
+    if (!sampler) return;
+    // Adjust volume based on slider
+    sampler.volume.value = -30 + (volume / 100) * 24;
     const previewNotes = notes || ['C4', 'E4', 'G4'];
     try {
-      synth.triggerAttackRelease(previewNotes, '4n');
+      previewNotes.forEach((note, i) => {
+        setTimeout(() => {
+          try { sampler.triggerAttackRelease(note, '4n'); } catch { /* ignore */ }
+        }, i * 30);
+      });
     } catch { /* ignore */ }
-  }, [initialize]);
+  }, [initialize, getHarmonySampler]);
 
   const stopContinuousPreview = useCallback(() => {
     // No-op for now, chords decay naturally
@@ -425,10 +450,10 @@ export function useAudioEngine() {
 
   const setHarmonyVolume = useCallback(async (instrumentId: string, volume: number) => {
     await initialize();
-    const synth = harmonySynthsRef.current[instrumentId];
-    if (!synth) return;
-    synth.volume.value = -30 + (volume / 100) * 24;
-  }, [initialize]);
+    const sampler = getHarmonySampler(instrumentId);
+    if (!sampler) return;
+    sampler.volume.value = -30 + (volume / 100) * 24;
+  }, [initialize, getHarmonySampler]);
 
   // Preview drum hit
   const previewDrum = useCallback(async (type: 'kick' | 'snare' | 'hihat') => {
@@ -520,7 +545,7 @@ export function useAudioEngine() {
     }
 
     // --- Schedule Drums ---
-    if (drumPattern && drumSynthsRef.current.kick) {
+    if (drumPattern && drumPattern.id !== 'no-drums' && drumSynthsRef.current.kick) {
       const drums = drumSynthsRef.current;
       const sixteenthDuration = barDuration / 16;
       for (let bar = 0; bar < totalBars; bar++) {
@@ -548,20 +573,24 @@ export function useAudioEngine() {
       }
     }
 
-    // --- Schedule Harmony Layers ---
+    // --- Schedule Harmony Layers — using REAL samplers ---
     const chords = CHORD_PROGRESSIONS[scaleKey] || CHORD_PROGRESSIONS['D-major'];
     const enabledLayers = harmonyLayers.filter(l => l.enabled);
     enabledLayers.forEach((layer) => {
-      const synth = harmonySynthsRef.current[layer.id];
-      if (!synth) return;
-      synth.volume.value = -30 + (layer.volume / 100) * 24;
+      const sampler = getHarmonySampler(layer.id);
+      if (!sampler) return;
+      // Set volume from layer
+      sampler.volume.value = -30 + (layer.volume / 100) * 24;
       for (let bar = 0; bar < totalBars; bar++) {
         const chord = chords[bar % chords.length];
         const absoluteTime = bar * barDuration;
-        const t = setTimeout(() => {
-          try { synth.triggerAttackRelease(chord, '1n'); } catch { /* ignore */ }
-        }, absoluteTime * 1000);
-        scheduledTimeoutsRef.current.push(t);
+        // Stagger chord notes slightly for natural attack
+        chord.forEach((note, ni) => {
+          const t = setTimeout(() => {
+            try { sampler.triggerAttackRelease(note, '1n'); } catch { /* ignore */ }
+          }, (absoluteTime + ni * 0.02) * 1000);
+          scheduledTimeoutsRef.current.push(t);
+        });
       }
     });
 
@@ -609,7 +638,7 @@ export function useAudioEngine() {
 
     isPlayingRef.current = true;
     setIsPlaying(true);
-  }, [initialize, getMelodyInstrument]);
+  }, [initialize, getMelodyInstrument, getHarmonySampler]);
 
   const stopAll = useCallback(() => {
     scheduledTimeoutsRef.current.forEach(clearTimeout);
@@ -632,7 +661,6 @@ export function useAudioEngine() {
       drumSynthsRef.current.kick?.dispose();
       drumSynthsRef.current.snare?.dispose();
       drumSynthsRef.current.hihat?.dispose();
-      Object.values(harmonySynthsRef.current).forEach(s => s?.dispose());
       bassSynthRef.current?.dispose();
       reverbRef.current?.dispose();
       delayRef.current?.dispose();

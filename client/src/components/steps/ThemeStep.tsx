@@ -1,7 +1,7 @@
 /*
  * Step 1: Choose a Theme
  * - Cards with theme images, auto-sets BPM/key/scale
- * - Plays a sample melody when theme is clicked (using the theme's default instrument)
+ * - Plays MusicGen-generated BGM preview when theme is clicked
  * - Shows a tone selector to override the melody instrument
  */
 import { useComposition } from '@/contexts/CompositionContext';
@@ -9,39 +9,85 @@ import type { MelodyTone } from '@/contexts/CompositionContext';
 import { THEMES, TONE_OPTIONS, THEME_SAMPLES } from '@/lib/themes';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Music, Volume2, Loader2 } from 'lucide-react';
+import { Check, Music, Volume2, Loader2, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 export default function ThemeStep() {
   const { selectedTheme, selectTheme, melodyTone, setMelodyTone, nextStep } = useComposition();
-  const { playSampleMelody, stopSampleMelody, setTone, samplesLoaded, initialize } = useAudioEngine();
-  const lastPlayedRef = useRef<string | null>(null);
+  const { playSampleMelody, stopSampleMelody, setTone, samplesLoaded } = useAudioEngine();
 
-  // Pre-initialize audio engine on mount
+  // HTML5 Audio for MusicGen preview
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [previewThemeId, setPreviewThemeId] = useState<string | null>(null);
+
+  // Cleanup audio on unmount
   useEffect(() => {
-    // Don't auto-initialize — wait for user interaction
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, []);
+
+  const stopPreview = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPreviewPlaying(false);
+    setPreviewThemeId(null);
+  };
+
+  const playPreview = (theme: typeof THEMES[0]) => {
+    // Stop any existing preview
+    stopPreview();
+    stopSampleMelody();
+
+    // Create new audio element for the MusicGen preview
+    const audio = new Audio(theme.previewAudioUrl);
+    audio.loop = true;
+    audio.volume = 0.7;
+    audioRef.current = audio;
+
+    audio.addEventListener('play', () => {
+      setIsPreviewPlaying(true);
+      setPreviewThemeId(theme.id);
+    });
+    audio.addEventListener('ended', () => {
+      setIsPreviewPlaying(false);
+      setPreviewThemeId(null);
+    });
+    audio.addEventListener('error', () => {
+      // Fallback to Tone.js sample melody if CDN audio fails
+      const sample = THEME_SAMPLES[theme.id];
+      if (sample) {
+        playSampleMelody(sample, theme.defaultTone);
+      }
+    });
+
+    audio.play().catch(() => {
+      // Autoplay blocked — fallback to Tone.js
+      const sample = THEME_SAMPLES[theme.id];
+      if (sample) {
+        playSampleMelody(sample, theme.defaultTone);
+      }
+    });
+  };
 
   const handleThemeClick = async (theme: typeof THEMES[0]) => {
     selectTheme(theme);
     setTone(theme.defaultTone);
-
-    // Play sample melody for this theme
-    const sample = THEME_SAMPLES[theme.id];
-    if (sample) {
-      // Stop previous sample
-      stopSampleMelody();
-      lastPlayedRef.current = theme.id;
-      await playSampleMelody(sample, theme.defaultTone);
-    }
+    playPreview(theme);
   };
 
   const handleToneChange = async (tone: MelodyTone) => {
     setMelodyTone(tone);
     setTone(tone);
 
-    // Replay the sample with the new tone
+    // Replay the Tone.js sample with the new tone to demonstrate the instrument
     if (selectedTheme) {
       const sample = THEME_SAMPLES[selectedTheme.id];
       if (sample) {
@@ -74,6 +120,7 @@ export default function ThemeStep() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
           {THEMES.map((theme, i) => {
             const isSelected = selectedTheme?.id === theme.id;
+            const isPlaying = previewThemeId === theme.id && isPreviewPlaying;
             return (
               <motion.button
                 key={theme.id}
@@ -110,8 +157,8 @@ export default function ThemeStep() {
                     </motion.div>
                   )}
 
-                  {/* Sound indicator when selected */}
-                  {isSelected && (
+                  {/* Sound indicator when playing */}
+                  {isPlaying && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -122,6 +169,17 @@ export default function ThemeStep() {
                       >
                         <Volume2 className="w-3 h-3" />
                         Playing preview
+                        {/* Animated sound bars */}
+                        <div className="flex items-end gap-0.5 h-3 ml-1">
+                          {[0, 1, 2].map((j) => (
+                            <motion.div
+                              key={j}
+                              className="w-0.5 rounded-full bg-white"
+                              animate={{ height: ['30%', '100%', '50%', '80%', '30%'] }}
+                              transition={{ duration: 0.8, repeat: Infinity, delay: j * 0.15 }}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -247,7 +305,10 @@ export default function ThemeStep() {
             )}
           </div>
           <Button
-            onClick={nextStep}
+            onClick={() => {
+              stopPreview(); // Stop audio before navigating
+              nextStep();
+            }}
             disabled={!selectedTheme}
             className="gradient-cosmic text-background font-semibold px-6 rounded-full border-0 hover:opacity-90 transition-opacity disabled:opacity-30"
           >

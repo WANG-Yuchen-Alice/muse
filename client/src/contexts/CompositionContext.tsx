@@ -14,6 +14,7 @@ export interface Theme {
   accentColor: string;
   image: string;
   defaultTone: MelodyTone;
+  previewAudioUrl: string;
 }
 
 export type MelodyTone = 'piano' | 'violin' | 'flute' | 'guitar' | 'electronic';

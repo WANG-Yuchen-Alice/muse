@@ -15,6 +15,7 @@ export const THEMES: Theme[] = [
     accentColor: '#00B4D8',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-ocean-sunset-GzCzB5RrbL8JLM8sQpFkZB.webp',
     defaultTone: 'piano',
+    previewAudioUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-preview-ocean-sunset_0e5ae494.mp3',
   },
   {
     id: 'bamboo-forest',
@@ -30,6 +31,7 @@ export const THEMES: Theme[] = [
     accentColor: '#A3E635',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-bamboo-forest-bkb2M7JvSmLfdCgtHD5SEZ.webp',
     defaultTone: 'flute',
+    previewAudioUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-preview-bamboo-forest_6c8cf595.mp3',
   },
   {
     id: 'city-neon',
@@ -45,6 +47,7 @@ export const THEMES: Theme[] = [
     accentColor: '#00E5FF',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-city-neon-a7oQjagSjdJscMvoBWDwY2.webp',
     defaultTone: 'electronic',
+    previewAudioUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-preview-city-neon_4cb24182.mp3',
   },
   {
     id: 'rainy-cafe',
@@ -60,6 +63,7 @@ export const THEMES: Theme[] = [
     accentColor: '#FF7E7E',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-rainy-cafe-68Hmi3CgJNFmbh26hmYThU.webp',
     defaultTone: 'guitar',
+    previewAudioUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-preview-rainy-cafe_0a96f823.mp3',
   },
   {
     id: 'stargazing',
@@ -75,6 +79,7 @@ export const THEMES: Theme[] = [
     accentColor: '#67E8F9',
     image: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-stargazing-SceYXcPWyRfdigA834GBZf.webp',
     defaultTone: 'violin',
+    previewAudioUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/theme-preview-stargazing_31a7a358.mp3',
   },
 ];
 
@@ -160,6 +165,7 @@ export const DRUM_PATTERNS = [
   {
     id: 'gentle-groove',
     name: 'Gentle Groove',
+    emoji: '🌿',
     description: 'Soft, understated rhythm with light touches',
     density: 30,
     pattern: [
@@ -171,6 +177,7 @@ export const DRUM_PATTERNS = [
   {
     id: 'steady-pulse',
     name: 'Steady Pulse',
+    emoji: '💗',
     description: 'Balanced beat with a confident, driving feel',
     density: 55,
     pattern: [
@@ -182,12 +189,49 @@ export const DRUM_PATTERNS = [
   {
     id: 'energetic-drive',
     name: 'Energetic Drive',
+    emoji: '⚡',
     description: 'Upbeat, lively rhythm with dynamic energy',
     density: 80,
     pattern: [
       [1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0], // kick
       [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1], // snare
       [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], // hihat
+    ],
+  },
+  {
+    id: 'lofi-chill',
+    name: 'Lo-fi Chill',
+    emoji: '🌙',
+    description: 'Laid-back, dusty hip-hop groove with swing',
+    density: 40,
+    pattern: [
+      [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0], // kick
+      [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1], // snare
+      [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0], // hihat
+    ],
+  },
+  {
+    id: 'reggaeton',
+    name: 'Reggaeton',
+    emoji: '🔥',
+    description: 'Latin-inspired dembow rhythm, infectious bounce',
+    density: 65,
+    pattern: [
+      [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], // kick
+      [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], // snare
+      [1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1], // hihat
+    ],
+  },
+  {
+    id: 'shuffle',
+    name: 'Jazz Shuffle',
+    emoji: '🎷',
+    description: 'Swinging triplet feel, smooth and sophisticated',
+    density: 50,
+    pattern: [
+      [1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0], // kick
+      [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0], // snare
+      [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], // hihat (triplet feel)
     ],
   },
 ];
