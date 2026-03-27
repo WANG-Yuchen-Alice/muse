@@ -223,6 +223,7 @@ function SessionCard({
     originalAudioUrl: string | null;
     melodyDescription: string | null;
     inputMode: string | null;
+    sessionName: string | null;
     createdAt: Date;
   };
   index: number;
@@ -285,7 +286,7 @@ function SessionCard({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground">
-            Session #{session.id}
+            {session.sessionName || `Session #${session.id}`}
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
             <Calendar className="w-3 h-3" />

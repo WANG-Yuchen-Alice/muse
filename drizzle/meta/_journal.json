@@ -15,6 +15,13 @@
       "when": 1774578889357,
       "tag": "0001_hard_randall_flagg",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774589799631,
+      "tag": "0002_lyrical_snowbird",
+      "breakpoints": true
     }
   ]
 }

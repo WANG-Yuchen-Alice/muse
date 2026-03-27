@@ -59,32 +59,49 @@ Be specific, atmospheric, and storytelling — each name should feel like a tiny
 // ============================================================
 // Lyria 3 Clip — text prompt only, 30s, 48kHz stereo
 // ============================================================
-async function generateWithLyria3(prompt: string): Promise<{ audioData: Buffer; caption: string }> {
-  const response = await genai.models.generateContent({
-    model: "lyria-3-clip-preview",
-    contents: prompt,
-    config: {
-      responseModalities: ["AUDIO", "TEXT"],
-    },
-  });
+async function generateWithLyria3(prompt: string, maxRetries = 3): Promise<{ audioData: Buffer; caption: string }> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await genai.models.generateContent({
+        model: "lyria-3-clip-preview",
+        contents: prompt,
+        config: {
+          responseModalities: ["AUDIO", "TEXT"],
+        },
+      });
 
-  let audioData: Buffer | null = null;
-  let caption = "";
+      let audioData: Buffer | null = null;
+      let caption = "";
 
-  const parts = response.candidates?.[0]?.content?.parts ?? [];
-  for (const part of parts) {
-    if (part.inlineData) {
-      audioData = Buffer.from(part.inlineData.data as string, "base64");
-    } else if (part.text) {
-      caption = part.text;
+      const parts = response.candidates?.[0]?.content?.parts ?? [];
+      for (const part of parts) {
+        if (part.inlineData) {
+          audioData = Buffer.from(part.inlineData.data as string, "base64");
+        } else if (part.text) {
+          caption = part.text;
+        }
+      }
+
+      if (!audioData) {
+        if (attempt < maxRetries) {
+          console.warn(`Lyria 3 attempt ${attempt}/${maxRetries}: no audio data, retrying...`);
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+        throw new Error("Lyria 3 did not return audio data after multiple attempts");
+      }
+
+      return { audioData, caption };
+    } catch (err: any) {
+      if (attempt < maxRetries && (err?.message?.includes("audio data") || err?.status === 500 || err?.status === 503)) {
+        console.warn(`Lyria 3 attempt ${attempt}/${maxRetries} failed: ${err.message}, retrying...`);
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      throw err;
     }
   }
-
-  if (!audioData) {
-    throw new Error("Lyria 3 did not return audio data");
-  }
-
-  return { audioData, caption };
+  throw new Error("Lyria 3 generation failed after all retries");
 }
 
 // ============================================================
@@ -388,20 +405,48 @@ export const appRouter = router({
         originalAudioUrl: z.string().optional(),
         melodyDescription: z.string().optional(),
         inputMode: z.string().optional(),
+        selectedStyles: z.array(z.string()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
+
+        // Generate a creative session name
+        let sessionName = "";
+        try {
+          const styleNames = (input.selectedStyles ?? []).map(
+            (id) => STYLES.find((s) => s.id === id)?.name ?? id
+          ).join(", ");
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `Generate a single creative, evocative session name (2-4 words, no quotes, no punctuation at end). Think of names like: Midnight Reverie, Sunlit Daydream, Velvet Dusk, Electric Dawn, Amber Cascade, Moonlit Passage, Crimson Tide, Whispered Echo. Be atmospheric and poetic.`,
+              },
+              {
+                role: "user",
+                content: `Create a session name for a music creation session using ${input.inputMode ?? "hum"} input${styleNames ? ` in styles: ${styleNames}` : ""}.`,
+              },
+            ],
+          });
+          const raw = response.choices?.[0]?.message?.content;
+          const nameStr = typeof raw === "string" ? raw : "";
+          sessionName = nameStr.trim().replace(/["']/g, "").replace(/\.$/, "");
+          if (sessionName.length > 100) sessionName = sessionName.slice(0, 100);
+        } catch {
+          sessionName = "";
+        }
 
         const result = await db.insert(sessions).values({
           userId: ctx.user?.id ?? null,
           originalAudioUrl: input.originalAudioUrl ?? null,
           melodyDescription: input.melodyDescription ?? null,
           inputMode: input.inputMode ?? null,
+          sessionName: sessionName || null,
         });
 
         const sessionId = result[0].insertId;
-        return { sessionId };
+        return { sessionId, sessionName };
       }),
 
     /** Generate with Lyria 3 Clip — max ~30s */

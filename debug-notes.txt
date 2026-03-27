@@ -1,0 +1,29 @@
+Hum Pause Button Bug Analysis:
+
+Line 493: onClick={isRecording ? stopRecording : hasRecording ? undefined : startRecording}
+Line 494: disabled={hasRecording && !isRecording}
+
+The problem: When isRecording=true, the onClick correctly maps to stopRecording.
+The disabled condition: hasRecording && !isRecording. When isRecording=true, this is false, so button is NOT disabled.
+
+But wait - there's a race condition. In startRecording (line 179):
+1. recorder.onstop callback (line 194) sets setHasRecording(true)
+2. But the timer at line 225-236 also calls mediaRecorderRef.current?.stop() when t >= 10
+
+The real issue might be that when recording starts, hasRecording might already be true from a previous recording.
+Actually looking more carefully:
+- Line 204: setIsRecording(true) is called
+- The button should show Square (stop icon) when isRecording=true (line 503-504)
+- onClick should be stopRecording when isRecording=true (line 493)
+- disabled should be false when isRecording=true (line 494: hasRecording && !isRecording = false when isRecording=true)
+
+So the logic LOOKS correct. The issue might be something else:
+- Maybe the button is visually unresponsive but functionally works?
+- Maybe there's a CSS z-index issue with the pulse animation overlaying the button?
+- The outer div at line 476 wraps the button - maybe it's intercepting clicks?
+
+KEY INSIGHT: The outer motion.div has the button INSIDE a relative container (line 477).
+The pulse animations (lines 480-489) are absolute positioned with inset-0, which means they COVER the button!
+The animations have no pointer-events:none, so they intercept clicks!
+
+FIX: Add pointer-events-none to the pulse animation divs.

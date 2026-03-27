@@ -59,3 +59,7 @@
 - [x] Backend: add gallery.listTracks route for individual track listing
 - [x] Results page: dynamic track count based on selected styles
 - [x] Update tests for 10 styles + listTracks route
+- [x] Bug: Hum recording pause button fixed (pointer-events-none on pulse overlays + z-10 on button)
+- [x] Bug: Lyria 3 "did not return audio data" — added server-side auto-retry (3 attempts with backoff)
+- [x] Feature: Session naming — LLM generates creative 2-4 word names (e.g. "Midnight Reverie")
+- [x] Research: Lyria 3 supports lyrics/vocals, MusicGen is instrumental only

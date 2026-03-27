@@ -478,12 +478,12 @@ export default function Home() {
                 {isRecording && (
                   <>
                     <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-primary/30"
+                      className="absolute inset-0 rounded-full border-2 border-primary/30 pointer-events-none"
                       animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
                     />
                     <motion.div
-                      className="absolute inset-2 rounded-full border-2 border-primary/20"
+                      className="absolute inset-2 rounded-full border-2 border-primary/20 pointer-events-none"
                       animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0, 0.3] }}
                       transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
                     />
@@ -492,7 +492,7 @@ export default function Home() {
                 <button
                   onClick={isRecording ? stopRecording : hasRecording ? undefined : startRecording}
                   disabled={hasRecording && !isRecording}
-                  className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
+                  className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all cursor-pointer ${
                     isRecording
                       ? "bg-red-500/20 border-2 border-red-500 glow-magenta"
                       : hasRecording
@@ -752,6 +752,7 @@ function VaultSessionCard({
     id: number;
     melodyDescription: string | null;
     inputMode: string | null;
+    sessionName: string | null;
     createdAt: Date;
   };
   vaultPlayingUrl: string | null;
@@ -811,11 +812,14 @@ function VaultSessionCard({
       {/* Info */}
       <div className="p-3">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-muted-foreground">{dateStr}</p>
+          <p className="text-xs font-semibold text-foreground">
+            {session.sessionName || `Session #${session.id}`}
+          </p>
           <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
             {session.inputMode === "piano" ? "Piano" : "Hum"}
           </span>
         </div>
+        <p className="text-[10px] text-muted-foreground mb-0.5">{dateStr}</p>
         <p className="text-xs text-foreground/70 line-clamp-1">
           {sessionTracks.length > 0
             ? sessionTracks.map((t) => t.trackName).filter(Boolean).slice(0, 3).join(" / ")

@@ -1,0 +1,40 @@
+Research: Text/Lyrics Input Support for Lyria 3 and MusicGen
+=============================================================
+
+## Lyria 3 Clip Preview (lyria-3-clip-preview)
+- INPUT: Text and Image
+- OUTPUT: Audio (MP3), Text (Lyrics)
+- DURATION: 30 seconds
+- LYRICS SUPPORT: YES! Full support for custom lyrics.
+  - Can include lyrics in the prompt with section tags [Verse], [Chorus], [Bridge]
+  - Can generate vocals with lyrics automatically from text description
+  - Supports "Instrumental only, no vocals" mode
+  - Supports multiple languages
+  - Can control timing with timestamps [0:00 - 0:10] etc.
+- CURRENT MUSE USAGE: Text prompt only (mood/style description)
+- ENHANCEMENT: Can pass user-written lyrics directly in the prompt
+
+## Lyria 3 Pro Preview (lyria-3-pro-preview)
+- Same as Clip but generates full-length songs (couple of minutes)
+- Better for structured songs with verses/choruses/bridges
+- NOT currently used in Muse
+
+## MusicGen (meta/musicgen on Replicate)
+- INPUT: Text prompt + optional audio (melody conditioning)
+- OUTPUT: Audio (WAV)
+- DURATION: configurable (default ~8s, max ~30s)
+- LYRICS/VOCALS: NO. MusicGen is instrumental only.
+  - It generates music conditioned on text descriptions of style/mood
+  - It can condition on melody from audio input
+  - It does NOT generate vocals or lyrics
+- CURRENT MUSE USAGE: Text prompt + audio melody conditioning
+
+## Summary for User
+- Lyria 3: YES, fully supports lyrics/text. Can generate vocals with custom lyrics.
+- MusicGen: NO, instrumental only. Text describes the style/mood, not lyrics.
+
+## Implementation Plan Options:
+1. Add a "lyrics" text input field on the Home page
+2. When generating with Lyria 3: include lyrics in the prompt → gets vocals
+3. When generating with MusicGen: ignore lyrics (or use them as mood description)
+4. Could also add a toggle: "Instrumental" vs "With Vocals"

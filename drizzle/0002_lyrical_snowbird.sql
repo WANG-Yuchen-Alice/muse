@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `sessionName` varchar(200);

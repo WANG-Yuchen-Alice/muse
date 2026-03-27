@@ -155,6 +155,7 @@ export default function Results() {
             originalAudioUrl: audioUrl || undefined,
             melodyDescription: melodyDescription || undefined,
             inputMode,
+            selectedStyles: selectedStyleIds.length > 0 ? selectedStyleIds : undefined,
           });
           sessionId = result.sessionId;
           sessionIdRef.current = sessionId;

@@ -31,6 +31,8 @@ export const sessions = mysqlTable("sessions", {
   melodyDescription: text("melodyDescription"),
   /** Input mode: hum or piano */
   inputMode: varchar("inputMode", { length: 16 }),
+  /** AI-generated session name (e.g. "Morning Whispers") */
+  sessionName: varchar("sessionName", { length: 200 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
