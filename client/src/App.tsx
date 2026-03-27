@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Results from "./pages/Results";
 import Gallery from "./pages/Gallery";
@@ -12,7 +13,8 @@ import Share from "./pages/Share";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Landing} />
+      <Route path="/create" component={Home} />
       <Route path="/results" component={Results} />
       <Route path="/gallery" component={Gallery} />
       <Route path="/share/:trackId" component={Share} />

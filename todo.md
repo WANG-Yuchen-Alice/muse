@@ -74,3 +74,9 @@
 - [x] Bug: Share button not working — added clipboard fallback with visual feedback when navigator.share fails (iframe/non-HTTPS)
 - [x] Bug: Generate Video button not responding — added e.stopPropagation() + relative z-10 to prevent event interception
 - [x] UI: Removed non-configurable Video Format info section from Video Studio dialog
+- [x] Write PRD document (market sizing, moonshot, Meta eco compatibility) for AI agent scoring
+- [x] Build professional landing page: cosmic hero bg, floating particles, stats bar, 4-step how-it-works, 3 feature sections with AI images, powered-by section, social-era section, final CTA, footer
+- [x] Route restructure: / = Landing page, /create = Home (creation tool)
+- [x] Updated all internal navigation links from / to /create
+- [x] Research Gemini Veo 3.1 API: supports 9:16 portrait, 8s videos, text-to-video, native audio, @google/genai SDK
+- [ ] Push all changes to GitHub

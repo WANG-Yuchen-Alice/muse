@@ -1,0 +1,84 @@
+RESEARCH FINDINGS FOR MUSE PRD
+================================
+
+## 1. MARKET SIZING
+
+AI Music Generation Market:
+- Grand View Research: $569.7M in 2024 → $2,794.7M by 2030 (CAGR ~30%)
+- Yahoo Finance: $419.85M in 2024 → $4.3B in 2029 (CAGR 59.25%)
+- Market.us: $5.2B in 2024 → $60.4B by 2034 (CAGR ~27.8%)
+- Spherical Insights: $558.4M in 2024 → $7,410.4M by 2035
+
+Key competitor: Suno AI
+- $250M Series C at $2.45B valuation (Nov 2025)
+- $200M annual revenue
+- Led by Menlo Ventures, with NVentures (NVIDIA)
+
+Other competitors: Udio, AIVA, Soundraw, Stable Audio
+
+## 2. META ECOSYSTEM COMPATIBILITY
+
+- Instagram Reels: Meta AI now allows audio reuse/remix via Meta AI
+- Meta "Vibes": AI video creation tool on Instagram (Sep 2025)
+- Meta AI Glasses: Built-in music playback, Music Info feature
+- Meta Quest: AI assistant with voice features
+- Meta AI Studio: Create, discover, interact with different AIs
+- Meta Connect 2025: Generative AI tools for Horizon Studio
+- Meta Horizon: VR/AR platform with AI integration
+
+Key integration points for Muse:
+1. Instagram Reels: Generate music → create 9:16 video → share to Reels
+2. Meta AI audio reuse: Allow AI-generated music to be remixed
+3. Meta Glasses: Hum-to-music while wearing glasses
+4. WhatsApp: Share music creation links
+5. Meta Quest: Immersive music creation in VR
+
+## 3. VEO VIDEO GENERATION API
+
+Veo 3.1 (Google's latest):
+- 8-second 720p, 1080p or 4K videos
+- Native audio generation (dialogue, sound effects)
+- Portrait (9:16) and landscape (16:9) support
+- Image-to-video generation
+- Video extension capability
+- Reference images for style guidance
+- Pricing: ~$0.35/sec of generated video
+
+API usage (JavaScript):
+```js
+import { GoogleGenAI } from "@google/genai";
+const ai = new GoogleGenAI({});
+let operation = await ai.models.generateVideos({
+  model: "veo-3.1-generate-preview",
+  prompt: prompt,
+  config: { aspectRatio: "9:16" }
+});
+// Poll until done
+while (!operation.done) {
+  await new Promise(resolve => setTimeout(resolve, 10000));
+  operation = await ai.operations.getVideosOperation({ operation });
+}
+// Download
+ai.files.download({
+  file: operation.response.generatedVideos[0].video,
+  downloadPath: "output.mp4"
+});
+```
+
+Key for Muse:
+- Can generate scene videos matching music mood/style
+- 9:16 portrait for TikTok/Reels
+- Use style-specific prompts (e.g., "neon city at night for electronic music")
+- Image-to-video: use existing AI-generated cover art as first frame
+- Native audio in Veo can be replaced with our generated music
+
+## 4. APAC AI NEW BETS HACKATHON CONTEXT
+
+Scoring likely covers:
+- Market sizing (TAM/SAM/SOM)
+- Moonshot vision (10x thinking)
+- Meta ecosystem compatibility
+- Technical feasibility
+- User experience
+- Business model
+- Competitive differentiation

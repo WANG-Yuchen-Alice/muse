@@ -122,7 +122,7 @@ export default function Share() {
         <Music2 className="w-16 h-16 text-muted-foreground/20" />
         <h2 className="font-display text-lg font-semibold text-foreground">Track not found</h2>
         <p className="text-sm text-muted-foreground">This track may have been removed or the link is invalid.</p>
-        <Button onClick={() => navigate("/")} className="gap-2 mt-2">
+        <Button onClick={() => navigate("/create")} className="gap-2 mt-2">
           <Music2 className="w-4 h-4" />
           Create Your Own
         </Button>
@@ -140,7 +140,7 @@ export default function Share() {
               variant="ghost"
               size="icon"
               className="w-8 h-8 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/create")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
@@ -150,7 +150,7 @@ export default function Share() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/create")}
             className="gap-2"
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -292,7 +292,7 @@ export default function Share() {
             </div>
             <div className="mt-3">
               <Button
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/create")}
                 variant="ghost"
                 size="sm"
                 className="gap-2 text-xs"

@@ -75,7 +75,7 @@ export default function Gallery() {
               variant="ghost"
               size="icon"
               className="w-8 h-8 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/create")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
@@ -85,7 +85,7 @@ export default function Gallery() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/create")}
             className="gap-2"
           >
             <Music2 className="w-3.5 h-3.5" />
@@ -155,7 +155,7 @@ export default function Gallery() {
             <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
               Hum a melody or play the piano to create your first piece. Each session generates unique tracks across multiple styles.
             </p>
-            <Button onClick={() => navigate("/")} className="gap-2">
+            <Button onClick={() => navigate("/create")} className="gap-2">
               <Music2 className="w-4 h-4" />
               Start Creating
             </Button>

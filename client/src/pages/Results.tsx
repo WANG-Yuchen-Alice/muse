@@ -424,7 +424,7 @@ export default function Results() {
               variant="ghost"
               size="icon"
               className="w-8 h-8 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/create")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
@@ -443,7 +443,7 @@ export default function Results() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/create")}
               className="gap-2"
             >
               <RefreshCw className="w-3.5 h-3.5" />
