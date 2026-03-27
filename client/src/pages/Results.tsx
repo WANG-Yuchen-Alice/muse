@@ -650,25 +650,6 @@ export default function Results() {
                 </div>
               </div>
 
-              {/* Format info */}
-              <div className="rounded-lg bg-white/5 border border-border/10 p-3">
-                <p className="text-xs font-medium text-foreground mb-2">Video Format</p>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-muted-foreground">Aspect</p>
-                    <p className="text-xs font-mono text-foreground">9:16</p>
-                  </div>
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-muted-foreground">Resolution</p>
-                    <p className="text-xs font-mono text-foreground">1080x1920</p>
-                  </div>
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-muted-foreground">For</p>
-                    <p className="text-xs font-mono text-foreground">TikTok / Reels</p>
-                  </div>
-                </div>
-              </div>
-
               {/* Generate button */}
               <Button
                 onClick={handleGenerateVideo}
@@ -1045,8 +1026,11 @@ function TrackCard({
 
         <Button
           size="sm"
-          className="w-full h-8 text-xs gap-1.5 gradient-cosmic text-background font-semibold border-0 hover:opacity-90 rounded-full"
-          onClick={onCreateVideo}
+          className="w-full h-8 text-xs gap-1.5 gradient-cosmic text-background font-semibold border-0 hover:opacity-90 rounded-full relative z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCreateVideo();
+          }}
         >
           <Film className="w-3.5 h-3.5" />
           Create Music Video

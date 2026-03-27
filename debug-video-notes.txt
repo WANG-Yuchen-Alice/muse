@@ -1,0 +1,26 @@
+Video Issues Debug Notes:
+
+1. "Create Music Video" button in TrackCard (line ~1046-1053) calls onCreateVideo
+   which maps to openVideoStudio(track) which sets videoStudioTrack state
+   This should open the Dialog (line 606: open={!!videoStudioTrack})
+
+2. Inside Dialog, "Generate Music Video" button (line ~673) calls handleGenerateVideo
+   which calls generateVideoMut.mutateAsync() 
+
+3. Possible issues:
+   - The button click might be intercepted by the play/pause overlay on the card
+   - The Dialog might not be rendering properly
+   - The gradient-cosmic class on the button might have issues with pointer events
+
+4. Video Format info section is at lines 653-670 - needs to be removed
+
+5. User said "clicking on generate video -> 没反应" - this could mean:
+   a) Clicking "Create Music Video" on the TrackCard doesn't open the dialog
+   b) OR clicking "Generate Music Video" inside the dialog doesn't trigger generation
+   
+   Most likely (a) since the button is inside the card which has a play/pause overlay
+   covering the entire card area (line 1013-1030: button with className="absolute inset-0")
+   
+   The play button overlay covers the ENTIRE card with absolute inset-0, which means
+   it sits ON TOP of the "Create Music Video" button at the bottom of the card!
+   This is the root cause - the play overlay intercepts all clicks.

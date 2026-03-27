@@ -72,3 +72,5 @@
 - [x] Bug: Video not vertical (9:16) format — fixed both createMusicVideo and createMp4WithImage to output 1080x1920
 - [x] Bug: No video actually generated — fixed FFmpeg filter_complex: no-image branch now uses proper -f lavfi -i input source
 - [x] Bug: Share button not working — added clipboard fallback with visual feedback when navigator.share fails (iframe/non-HTTPS)
+- [x] Bug: Generate Video button not responding — added e.stopPropagation() + relative z-10 to prevent event interception
+- [x] UI: Removed non-configurable Video Format info section from Video Studio dialog
