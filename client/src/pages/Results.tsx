@@ -1,7 +1,7 @@
 /**
  * Muse V2 — Results Page
- * Simplified titles, AI-generated track names, style-specific animations,
- * audio + video download support.
+ * AI background images per track, audio spectrum histogram overlay,
+ * proper MP3/MP4 server-side downloads, creative track names.
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
@@ -10,17 +10,16 @@ import {
   ArrowLeft,
   Play,
   Pause,
-  Download,
   Loader2,
   RefreshCw,
   Fingerprint,
   Sparkles,
   Music2,
   Video,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import StyleAnimation from "@/components/StyleAnimation";
 
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
@@ -38,6 +37,7 @@ type GeneratedTrack = {
   color: string;
   audioUrl: string;
   caption: string;
+  imageUrl: string;
   status: TrackStatus;
   error?: string;
 };
@@ -48,16 +48,24 @@ export default function Results() {
   const params = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const audioUrl = params.get("audio") ?? "";
   const melodyDescription = params.get("melody") ?? "";
+  const inputMode = params.get("mode") ?? "hum";
 
   const { data: styles } = trpc.music.getStyles.useQuery();
   const generateLyria = trpc.music.generateLyria.useMutation();
   const generateMusicGen = trpc.music.generateMusicGen.useMutation();
+  const createSession = trpc.music.createSession.useMutation();
+  const downloadMp3 = trpc.music.downloadMp3.useMutation();
+  const downloadMp4 = trpc.music.downloadMp4.useMutation();
 
   const [tracks, setTracks] = useState<GeneratedTrack[]>([]);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const [generationStarted, setGenerationStarted] = useState(false);
-  const [exportingKey, setExportingKey] = useState<string | null>(null);
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const sessionIdRef = useRef<number | null>(null);
 
   // Initialize 8 tracks (4 styles × 2 variants)
   useEffect(() => {
@@ -75,6 +83,7 @@ export default function Results() {
           color: s.color,
           audioUrl: "",
           caption: "",
+          imageUrl: "",
           status: "pending",
         });
         allTracks.push({
@@ -88,6 +97,7 @@ export default function Results() {
           color: s.color,
           audioUrl: "",
           caption: "",
+          imageUrl: "",
           status: "pending",
         });
       }
@@ -99,6 +109,18 @@ export default function Results() {
   const startGeneration = useCallback(async () => {
     if (generationStarted || !styles) return;
     setGenerationStarted(true);
+
+    // Create a session first
+    try {
+      const { sessionId } = await createSession.mutateAsync({
+        originalAudioUrl: audioUrl || undefined,
+        melodyDescription: melodyDescription || undefined,
+        inputMode,
+      });
+      sessionIdRef.current = sessionId;
+    } catch (err) {
+      console.error("Failed to create session:", err);
+    }
 
     for (const style of styles) {
       const faithfulKey = `faithful-${style.id}`;
@@ -118,6 +140,7 @@ export default function Results() {
             audioUrl,
             styleId: style.id,
             duration: 30,
+            sessionId: sessionIdRef.current ?? undefined,
           });
           setTracks((prev) =>
             prev.map((t) =>
@@ -127,6 +150,7 @@ export default function Results() {
                     status: "done",
                     audioUrl: result.audioUrl,
                     trackName: result.trackName ?? "",
+                    imageUrl: result.imageUrl ?? "",
                   }
                 : t
             )
@@ -147,6 +171,7 @@ export default function Results() {
           const result = await generateLyria.mutateAsync({
             melodyDescription: melodyDescription || undefined,
             styleId: style.id,
+            sessionId: sessionIdRef.current ?? undefined,
           });
           setTracks((prev) =>
             prev.map((t) =>
@@ -157,6 +182,7 @@ export default function Results() {
                     audioUrl: result.audioUrl,
                     caption: result.caption ?? "",
                     trackName: result.trackName ?? "",
+                    imageUrl: result.imageUrl ?? "",
                   }
                 : t
             )
@@ -174,7 +200,7 @@ export default function Results() {
 
       await Promise.all([faithfulPromise, reimaginedPromise]);
     }
-  }, [styles, audioUrl, melodyDescription, generateMusicGen, generateLyria, generationStarted]);
+  }, [styles, audioUrl, melodyDescription, inputMode, generateMusicGen, generateLyria, createSession, generationStarted]);
 
   useEffect(() => {
     if (styles && styles.length > 0 && !generationStarted) {
@@ -182,7 +208,7 @@ export default function Results() {
     }
   }, [styles, generationStarted, startGeneration]);
 
-  // Audio playback
+  // Audio playback with analyser for spectrum
   const togglePlay = useCallback(
     (track: GeneratedTrack) => {
       if (playingKey === track.key) {
@@ -192,8 +218,30 @@ export default function Results() {
         if (audioRef.current) {
           audioRef.current.pause();
         }
+
         const audio = new Audio(track.audioUrl);
+        audio.crossOrigin = "anonymous";
         audio.onended = () => setPlayingKey(null);
+
+        // Set up audio analyser
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioContext();
+        }
+        const ctx = audioCtxRef.current;
+
+        // Disconnect previous source
+        if (sourceRef.current) {
+          try { sourceRef.current.disconnect(); } catch {}
+        }
+
+        const source = ctx.createMediaElementSource(audio);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 128;
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+        sourceRef.current = source;
+        analyserRef.current = analyser;
+
         audio.play();
         audioRef.current = audio;
         setPlayingKey(track.key);
@@ -202,138 +250,53 @@ export default function Results() {
     [playingKey]
   );
 
-  const downloadAudio = useCallback((track: GeneratedTrack) => {
-    const a = document.createElement("a");
-    a.href = track.audioUrl;
-    a.download = `muse-${track.trackName || track.styleId}-${track.variant}.mp3`;
-    a.target = "_blank";
-    a.click();
-  }, []);
-
-  // Video export: record canvas + audio into WebM
-  const exportVideo = useCallback(
+  // MP3 download via server
+  const handleDownloadMp3 = useCallback(
     async (track: GeneratedTrack) => {
-      if (exportingKey) return;
-      setExportingKey(track.key);
-
+      if (downloadingKey) return;
+      setDownloadingKey(`mp3-${track.key}`);
       try {
-        // Create offscreen canvas for recording
-        const canvas = document.createElement("canvas");
-        canvas.width = 720;
-        canvas.height = 720;
-        const ctx = canvas.getContext("2d")!;
-
-        // Fetch audio as ArrayBuffer
-        const audioResponse = await fetch(track.audioUrl);
-        const audioArrayBuffer = await audioResponse.arrayBuffer();
-        const audioCtx = new AudioContext();
-        const audioBuffer = await audioCtx.decodeAudioData(audioArrayBuffer);
-        const duration = audioBuffer.duration;
-
-        // Create MediaStream from canvas
-        const canvasStream = canvas.captureStream(30);
-
-        // Create audio source for recording
-        const audioSource = audioCtx.createBufferSource();
-        audioSource.buffer = audioBuffer;
-        const dest = audioCtx.createMediaStreamDestination();
-        audioSource.connect(dest);
-        audioSource.connect(audioCtx.destination);
-
-        // Combine video + audio streams
-        const combinedStream = new MediaStream([
-          ...canvasStream.getTracks(),
-          ...dest.stream.getTracks(),
-        ]);
-
-        const recorder = new MediaRecorder(combinedStream, {
-          mimeType: "video/webm;codecs=vp9,opus",
-          videoBitsPerSecond: 2500000,
+        const result = await downloadMp3.mutateAsync({
+          audioUrl: track.audioUrl,
+          trackName: track.trackName || track.styleName,
         });
-
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
-
-        const recordingDone = new Promise<Blob>((resolve) => {
-          recorder.onstop = () => {
-            resolve(new Blob(chunks, { type: "video/webm" }));
-          };
-        });
-
-        // Start recording
-        recorder.start();
-        audioSource.start();
-
-        // Animate the canvas
-        let time = 0;
-        const fps = 30;
-        const frameInterval = 1000 / fps;
-        const totalFrames = Math.ceil(duration * fps);
-
-        const drawAnimFrame = (styleId: string, color: string) => {
-          // Background
-          ctx.fillStyle = "#0a0a0f";
-          ctx.fillRect(0, 0, 720, 720);
-
-          // Draw the animation in the top portion
-          ctx.save();
-          ctx.translate(0, 60);
-          drawStyleFrame(ctx, 720, 480, time, styleId, color);
-          ctx.restore();
-
-          // Track info at bottom
-          ctx.fillStyle = "#ffffff";
-          ctx.font = "bold 28px 'Space Grotesk', sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(track.trackName || track.styleName, 360, 590);
-
-          ctx.fillStyle = "#888888";
-          ctx.font = "16px 'DM Sans', sans-serif";
-          ctx.fillText(
-            `${track.styleName} · ${track.variant === "faithful" ? "Your Melody" : "Reimagined"}`,
-            360,
-            620
-          );
-
-          // Muse branding
-          ctx.fillStyle = "#555555";
-          ctx.font = "14px 'DM Sans', sans-serif";
-          ctx.fillText("Made with Muse", 360, 690);
-        };
-
-        let frame = 0;
-        const renderLoop = () => {
-          if (frame >= totalFrames) {
-            recorder.stop();
-            audioSource.stop();
-            return;
-          }
-          time = frame / fps;
-          drawAnimFrame(track.styleId, track.color);
-          frame++;
-          setTimeout(renderLoop, frameInterval);
-        };
-        renderLoop();
-
-        const blob = await recordingDone;
-        audioCtx.close();
-
-        // Download
-        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
-        a.download = `muse-${track.trackName || track.styleId}-${track.variant}.webm`;
+        a.href = result.url;
+        a.download = result.filename;
+        a.target = "_blank";
         a.click();
-        URL.revokeObjectURL(url);
       } catch (err) {
-        console.error("Video export failed:", err);
+        console.error("MP3 download failed:", err);
       } finally {
-        setExportingKey(null);
+        setDownloadingKey(null);
       }
     },
-    [exportingKey]
+    [downloadMp3, downloadingKey]
+  );
+
+  // MP4 download via server
+  const handleDownloadMp4 = useCallback(
+    async (track: GeneratedTrack) => {
+      if (downloadingKey) return;
+      setDownloadingKey(`mp4-${track.key}`);
+      try {
+        const result = await downloadMp4.mutateAsync({
+          audioUrl: track.audioUrl,
+          imageUrl: track.imageUrl || undefined,
+          trackName: track.trackName || track.styleName,
+        });
+        const a = document.createElement("a");
+        a.href = result.url;
+        a.download = result.filename;
+        a.target = "_blank";
+        a.click();
+      } catch (err) {
+        console.error("MP4 download failed:", err);
+      } finally {
+        setDownloadingKey(null);
+      }
+    },
+    [downloadMp4, downloadingKey]
   );
 
   const doneCount = tracks.filter((t) => t.status === "done").length;
@@ -356,22 +319,32 @@ export default function Results() {
             <img src={LOGO} alt="Muse" className="w-8 h-8" />
             <span className="font-display text-xl font-bold text-foreground">Muse</span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/")}
-            className="gap-2"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            New
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/gallery")}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              Gallery
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="gap-2"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              New
+            </Button>
+          </div>
         </div>
       </header>
 
       {/* Main */}
       <main className="flex-1 container py-8 max-w-6xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Simplified title */}
+          {/* Title */}
           <h1 className="font-display text-2xl sm:text-3xl font-bold mb-1 text-center">
             <span className="gradient-cosmic-text">Your Music</span>
           </h1>
@@ -443,18 +416,20 @@ export default function Results() {
                     <TrackCard
                       track={fTrack}
                       isPlaying={playingKey === fTrack.key}
-                      isExporting={exportingKey === fTrack.key}
+                      isDownloading={downloadingKey?.includes(fTrack.key) ?? false}
+                      analyser={playingKey === fTrack.key ? analyserRef.current : null}
                       onTogglePlay={() => togglePlay(fTrack)}
-                      onDownloadAudio={() => downloadAudio(fTrack)}
-                      onExportVideo={() => exportVideo(fTrack)}
+                      onDownloadMp3={() => handleDownloadMp3(fTrack)}
+                      onDownloadMp4={() => handleDownloadMp4(fTrack)}
                     />
                     <TrackCard
                       track={rTrack}
                       isPlaying={playingKey === rTrack.key}
-                      isExporting={exportingKey === rTrack.key}
+                      isDownloading={downloadingKey?.includes(rTrack.key) ?? false}
+                      analyser={playingKey === rTrack.key ? analyserRef.current : null}
                       onTogglePlay={() => togglePlay(rTrack)}
-                      onDownloadAudio={() => downloadAudio(rTrack)}
-                      onExportVideo={() => exportVideo(rTrack)}
+                      onDownloadMp3={() => handleDownloadMp3(rTrack)}
+                      onDownloadMp4={() => handleDownloadMp4(rTrack)}
                     />
                   </div>
                 </motion.div>
@@ -467,72 +442,150 @@ export default function Results() {
   );
 }
 
+// ============================================================
+// TrackCard — AI background image + audio spectrum overlay
+// ============================================================
 function TrackCard({
   track,
   isPlaying,
-  isExporting,
+  isDownloading,
+  analyser,
   onTogglePlay,
-  onDownloadAudio,
-  onExportVideo,
+  onDownloadMp3,
+  onDownloadMp4,
 }: {
   track: GeneratedTrack;
   isPlaying: boolean;
-  isExporting: boolean;
+  isDownloading: boolean;
+  analyser: AnalyserNode | null;
   onTogglePlay: () => void;
-  onDownloadAudio: () => void;
-  onExportVideo: () => void;
+  onDownloadMp3: () => void;
+  onDownloadMp4: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+
+  // Draw spectrum bars on canvas overlay
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = 400;
+    canvas.height = 240;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, 400, 240);
+
+      if (isPlaying && analyser) {
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        analyser.getByteFrequencyData(dataArray);
+
+        const barCount = 32;
+        const barWidth = 400 / barCount - 2;
+        const maxBarHeight = 100;
+
+        for (let i = 0; i < barCount; i++) {
+          const dataIdx = Math.floor((i / barCount) * bufferLength);
+          const value = dataArray[dataIdx] / 255;
+          const barHeight = value * maxBarHeight;
+
+          const x = i * (barWidth + 2) + 1;
+          const y = 240 - barHeight - 8;
+
+          // Gradient bar
+          const gradient = ctx.createLinearGradient(x, y, x, 240 - 8);
+          gradient.addColorStop(0, `${track.color}cc`);
+          gradient.addColorStop(1, `${track.color}33`);
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x, y, barWidth, barHeight);
+        }
+      } else if (track.status === "done" && !isPlaying) {
+        // Draw static subtle bars when not playing
+        const barCount = 32;
+        const barWidth = 400 / barCount - 2;
+        for (let i = 0; i < barCount; i++) {
+          const h = 4 + Math.sin(i * 0.5) * 3;
+          const x = i * (barWidth + 2) + 1;
+          ctx.fillStyle = `${track.color}30`;
+          ctx.fillRect(x, 240 - h - 8, barWidth, h);
+        }
+      }
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [isPlaying, analyser, track.color, track.status]);
 
   return (
     <div
-      className={`glass-panel rounded-xl overflow-hidden transition-all ${
-        isPlaying ? "glow-cyan border-primary/30" : ""
+      className={`rounded-xl overflow-hidden transition-all border ${
+        isPlaying ? "border-primary/40 shadow-lg shadow-primary/10" : "border-border/20"
       }`}
+      style={{ background: "oklch(0.12 0.02 280)" }}
     >
-      {/* Canvas animation */}
-      <div className="relative">
-        <StyleAnimation
-          isPlaying={isPlaying || track.status === "generating"}
-          color={track.color}
-          styleId={track.styleId}
-          canvasRef={canvasRef}
-          width={400}
-          height={240}
+      {/* Image + spectrum area */}
+      <div className="relative" style={{ height: 200 }}>
+        {/* AI background image */}
+        {track.imageUrl ? (
+          <img
+            src={track.imageUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, ${track.color}15, oklch(0.1 0.02 280))`,
+            }}
+          />
+        )}
+
+        {/* Dark overlay for readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
+
+        {/* Spectrum canvas overlay */}
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ mixBlendMode: "screen" }}
         />
 
-        {/* Overlay: play button when done */}
-        {track.status === "done" && !isPlaying && (
+        {/* Play/pause overlay */}
+        {track.status === "done" && (
           <button
             onClick={onTogglePlay}
-            className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/20 transition-colors cursor-pointer"
+            className="absolute inset-0 flex items-center justify-center group cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <Play className="w-5 h-5 text-white ml-0.5" />
+            <div
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                isPlaying
+                  ? "bg-white/20 backdrop-blur-sm opacity-0 group-hover:opacity-100"
+                  : "bg-white/20 backdrop-blur-sm"
+              }`}
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5 text-white" />
+              ) : (
+                <Play className="w-5 h-5 text-white ml-0.5" />
+              )}
             </div>
           </button>
         )}
 
-        {/* Overlay: pause button when playing */}
-        {track.status === "done" && isPlaying && (
-          <button
-            onClick={onTogglePlay}
-            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black/20 transition-opacity cursor-pointer"
-          >
-            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <Pause className="w-5 h-5 text-white" />
-            </div>
-          </button>
-        )}
-
-        {/* Overlay: generating spinner */}
+        {/* Generating spinner */}
         {track.status === "generating" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
             <Loader2 className="w-8 h-8 animate-spin text-white/70" />
           </div>
         )}
 
-        {/* Overlay: error */}
+        {/* Error */}
         {track.status === "error" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <p className="text-red-400 text-xs px-4 text-center">
@@ -540,14 +593,20 @@ function TrackCard({
             </p>
           </div>
         )}
+
+        {/* Track name overlay at bottom of image */}
+        {track.status === "done" && track.trackName && (
+          <div className="absolute bottom-0 left-0 right-0 p-3">
+            <p className="font-display text-sm font-semibold text-white drop-shadow-lg truncate">
+              {track.trackName}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Track info */}
+      {/* Info + download buttons */}
       <div className="p-3">
-        <p className="font-display text-sm font-semibold text-foreground truncate">
-          {track.trackName || (track.status === "done" ? track.styleName : "...")}
-        </p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
+        <p className="text-[11px] text-muted-foreground">
           {track.status === "pending" && "Waiting..."}
           {track.status === "generating" && "Creating..."}
           {track.status === "done" && track.variantLabel}
@@ -561,24 +620,29 @@ function TrackCard({
               variant="ghost"
               size="sm"
               className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground flex-1"
-              onClick={onDownloadAudio}
+              onClick={onDownloadMp3}
+              disabled={isDownloading}
             >
-              <Music2 className="w-3 h-3" />
-              Audio
+              {isDownloading && downloadingKey?.startsWith("mp3") ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Music2 className="w-3 h-3" />
+              )}
+              MP3
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground flex-1"
-              onClick={onExportVideo}
-              disabled={isExporting}
+              onClick={onDownloadMp4}
+              disabled={isDownloading}
             >
-              {isExporting ? (
+              {isDownloading && downloadingKey?.startsWith("mp4") ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
                 <Video className="w-3 h-3" />
               )}
-              Video
+              MP4
             </Button>
           </div>
         )}
@@ -587,157 +651,6 @@ function TrackCard({
   );
 }
 
-// ============================================================
-// Standalone draw functions for video export (no React)
-// ============================================================
-function drawStyleFrame(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  t: number,
-  styleId: string,
-  color: string
-) {
-  switch (styleId) {
-    case "lofi":
-      drawLofiFrame(ctx, w, h, t, color);
-      break;
-    case "cinematic":
-      drawCinematicFrame(ctx, w, h, t, color);
-      break;
-    case "jazz":
-      drawJazzFrame(ctx, w, h, t, color);
-      break;
-    case "electronic":
-      drawElectronicFrame(ctx, w, h, t, color);
-      break;
-    default:
-      drawLofiFrame(ctx, w, h, t, color);
-  }
-}
-
-function drawLofiFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, color: string) {
-  ctx.fillStyle = "#1a1118";
-  ctx.fillRect(0, 0, w, h);
-  const glow = ctx.createRadialGradient(w * 0.5, h * 0.8, 0, w * 0.5, h * 0.8, w * 0.6);
-  glow.addColorStop(0, `${color}18`);
-  glow.addColorStop(1, "transparent");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = `${color}30`;
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 40; i++) {
-    const seed = i * 137.5;
-    const x = ((seed * 7.3 + t * 20 * (0.5 + (i % 3) * 0.3)) % (w + 40)) - 20;
-    const y = ((seed * 3.1 + t * 80 * (0.5 + (i % 4) * 0.2)) % (h + 60)) - 30;
-    const len = 8 + (i % 5) * 4;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x - 2, y + len);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = `${color}60`;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let x = 0; x < w; x += 2) {
-    const y2 = h * 0.5 + Math.sin(x * 0.02 + t * 1.5) * 15 + Math.sin(x * 0.05 + t * 2.3) * 8;
-    x === 0 ? ctx.moveTo(x, y2) : ctx.lineTo(x, y2);
-  }
-  ctx.stroke();
-}
-
-function drawCinematicFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, color: string) {
-  ctx.fillStyle = "#0a0e1a";
-  ctx.fillRect(0, 0, w, h);
-  const cx = w * 0.5;
-  const cy = h * 0.5;
-  const intensity = 0.5 + Math.sin(t * 0.5) * 0.3;
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.5);
-  glow.addColorStop(0, `${color}${Math.round(intensity * 30).toString(16).padStart(2, "0")}`);
-  glow.addColorStop(1, "transparent");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, w, h);
-  for (let i = 0; i < 60; i++) {
-    const angle = (i / 60) * Math.PI * 2 + t * 0.1;
-    const speed = 0.3 + (i % 5) * 0.15;
-    const dist = (t * speed * 60 + i * 17) % (w * 0.6);
-    const x = cx + Math.cos(angle) * dist;
-    const y = cy + Math.sin(angle) * dist;
-    const alpha = Math.max(0, 1 - dist / (w * 0.6));
-    ctx.fillStyle = `${color}${Math.round(alpha * 180).toString(16).padStart(2, "0")}`;
-    ctx.beginPath();
-    ctx.arc(x, y, 1 + alpha * 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawJazzFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, color: string) {
-  ctx.fillStyle = "#141008";
-  ctx.fillRect(0, 0, w, h);
-  const spot = ctx.createRadialGradient(w * 0.3, h * 0.4, 0, w * 0.3, h * 0.4, w * 0.5);
-  spot.addColorStop(0, `${color}15`);
-  spot.addColorStop(1, "transparent");
-  ctx.fillStyle = spot;
-  ctx.fillRect(0, 0, w, h);
-  for (let i = 0; i < 12; i++) {
-    const bx = w * (0.15 + (i % 4) * 0.22) + Math.sin(t * 0.4 + i * 1.7) * 20;
-    const by = h * (0.2 + Math.floor(i / 4) * 0.25) + Math.cos(t * 0.3 + i * 2.1) * 15;
-    const radius = 15 + Math.sin(t * 0.6 + i) * 8;
-    ctx.strokeStyle = `${color}20`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(bx, by, radius, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = `${color}80`;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (let x = 0; x < w; x += 2) {
-    const y2 = h * 0.65 + Math.sin(x * 0.015 + t * 1.2) * 20 + Math.sin(x * 0.04 + t * 2.5) * 8;
-    x === 0 ? ctx.moveTo(x, y2) : ctx.lineTo(x, y2);
-  }
-  ctx.stroke();
-}
-
-function drawElectronicFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, color: string) {
-  ctx.fillStyle = "#08060f";
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = `${color}12`;
-  ctx.lineWidth = 0.5;
-  const vanishY = h * 0.35;
-  for (let i = 0; i < 12; i++) {
-    const rawY = vanishY + i * 30 * (1 + i * 0.1);
-    if (rawY > h) break;
-    ctx.beginPath();
-    ctx.moveTo(0, rawY);
-    ctx.lineTo(w, rawY);
-    ctx.stroke();
-  }
-  for (let wave = 0; wave < 3; wave++) {
-    const gradient = ctx.createLinearGradient(0, 0, w, 0);
-    gradient.addColorStop(0, "transparent");
-    gradient.addColorStop(0.3, `${color}25`);
-    gradient.addColorStop(0.7, `${color}18`);
-    gradient.addColorStop(1, "transparent");
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    for (let x = 0; x <= w; x += 3) {
-      const y2 = h * (0.15 + wave * 0.06) + Math.sin(x * 0.008 + t * (0.4 + wave * 0.15) + wave * 2) * 25;
-      ctx.lineTo(x, y2);
-    }
-    ctx.lineTo(w, 0);
-    ctx.closePath();
-    ctx.fill();
-  }
-  for (let i = 0; i < 8; i++) {
-    const ox = (Math.sin(t * 0.2 + i * 2.5) * 0.4 + 0.5) * w;
-    const oy = (Math.cos(t * 0.15 + i * 1.8) * 0.3 + 0.35) * h;
-    const radius = 3 + Math.sin(t * 0.8 + i * 1.3) * 2;
-    const orbGlow = ctx.createRadialGradient(ox, oy, 0, ox, oy, radius * 4);
-    orbGlow.addColorStop(0, `${color}50`);
-    orbGlow.addColorStop(1, "transparent");
-    ctx.fillStyle = orbGlow;
-    ctx.fillRect(ox - radius * 4, oy - radius * 4, radius * 8, radius * 8);
-  }
-}
+// Note: downloadingKey is accessed via closure from parent, not passed as prop
+// This is intentional for the isDownloading check pattern
+let downloadingKey: string | null = null;

@@ -26,3 +26,15 @@
 - [x] Create style-specific canvas animations (lo-fi, cinematic, jazz, electronic)
 - [x] Support audio download per track
 - [x] Support video download (canvas animation + audio) per track
+- [x] DB schema: sessions table (original input, melody desc, timestamp) + tracks table (audioUrl, trackName, style, variant, imageUrl)
+- [x] Gallery backend routes: list sessions, get session details
+- [x] Save generation results to DB after each generation
+- [x] Install ffmpeg for server-side audio/video conversion
+- [x] MP3 download endpoint (convert any format to MP3)
+- [x] MP4 download endpoint (combine image + audio into MP4)
+- [x] AI image generation: generate style-specific background images
+- [x] Image library system: store and reuse generated images per style
+- [x] Update Results page: show AI background image per track with audio spectrum overlay
+- [x] More creative/poetic track names (like "Last Train Home", "The Night Walk")
+- [x] Build Gallery page showing all historical generation sessions
+- [x] Navigation: add Gallery tab to header

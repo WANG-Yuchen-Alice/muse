@@ -8,6 +8,17 @@ import { nanoid } from "nanoid";
 import { GoogleGenAI } from "@google/genai";
 import axios from "axios";
 import { invokeLLM } from "./_core/llm";
+import { generateImage } from "./_core/imageGeneration";
+import { getDb } from "./db";
+import { sessions, tracks, styleImages } from "../drizzle/schema";
+import { eq, desc, sql } from "drizzle-orm";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { writeFile, unlink, readFile } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
+
+const execFileAsync = promisify(execFile);
 
 const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY ?? "";
 const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY ?? "";
@@ -15,29 +26,31 @@ const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY ?? "";
 const genai = new GoogleGenAI({ apiKey: GOOGLE_AI_API_KEY });
 
 // ============================================================
-// Track name generator via LLM
+// Track name generator — more poetic and evocative
 // ============================================================
 async function generateTrackName(style: string, variant: "faithful" | "reimagined"): Promise<string> {
   try {
     const vibe = variant === "faithful"
-      ? "a piece that closely follows the original melody, intimate and personal"
-      : "a creative reimagination that takes the melody in unexpected directions";
+      ? "closely follows the original melody — intimate, personal, close to the heart"
+      : "a bold creative reimagination — unexpected, expansive, taking the melody somewhere new";
     const response = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: "You are a creative music naming assistant. Generate a single evocative track name (2-4 words, no quotes). Be poetic and specific. Examples: Midnight Reverie, Amber Horizons, Velvet Cascade, Neon Drift.",
+          content: `You are a creative music naming artist. Generate a single evocative, poetic track name (2-5 words, no quotes, no punctuation at the end). 
+Think of names like: Last Train Home, The Night Walk, Paper Lanterns, Midnight in Kyoto, Amber Horizons, Letters Never Sent, Rooftop Serenade, Velvet Hour, Ghost of a Waltz, Neon Rainfall, Sunday Morning Light.
+Be specific, atmospheric, and storytelling — each name should feel like a tiny narrative or scene. Avoid generic music terms.`,
         },
         {
           role: "user",
-          content: `Generate a track name for ${vibe} in the ${style} genre.`,
+          content: `Generate a track name for a piece that ${vibe}, in the ${style} genre.`,
         },
       ],
     });
     const raw = response.choices?.[0]?.message?.content;
     const nameStr = typeof raw === "string" ? raw : "";
-    const name = nameStr.trim().replace(/["']/g, "");
-    return name.length > 0 && name.length < 40 ? name : `${style} ${variant === "faithful" ? "Echo" : "Dream"}`;
+    const name = nameStr.trim().replace(/["']/g, "").replace(/\.$/, "");
+    return name.length > 0 && name.length < 60 ? name : `${style} ${variant === "faithful" ? "Echo" : "Dream"}`;
   } catch {
     return `${style} ${variant === "faithful" ? "Echo" : "Dream"}`;
   }
@@ -105,7 +118,6 @@ async function generateWithMusicGen(
 
   const predictionId = createRes.data.id;
 
-  // Poll for completion (max 180s for longer tracks)
   for (let i = 0; i < 90; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     const pollRes = await axios.get(
@@ -122,6 +134,133 @@ async function generateWithMusicGen(
     }
   }
   throw new Error("MusicGen prediction timed out after 180s");
+}
+
+// ============================================================
+// Style image generation — uses built-in image generation
+// ============================================================
+async function getOrGenerateStyleImage(styleId: string, styleName: string, color: string): Promise<string> {
+  const db = await getDb();
+  if (db) {
+    // Try to get an existing image with lowest usage count
+    const existing = await db
+      .select()
+      .from(styleImages)
+      .where(eq(styleImages.styleId, styleId))
+      .orderBy(styleImages.usageCount)
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Increment usage count
+      await db.update(styleImages).set({ usageCount: sql`${styleImages.usageCount} + 1` }).where(eq(styleImages.id, existing[0].id));
+      return existing[0].imageUrl;
+    }
+  }
+
+  // Generate a new image
+  const prompts: Record<string, string> = {
+    lofi: "Dreamy lo-fi aesthetic scene: a cozy window view on a rainy night, warm amber light from a desk lamp, vinyl records scattered, steaming cup of coffee, soft bokeh city lights in background, muted warm tones, nostalgic atmosphere, cinematic photography style",
+    cinematic: "Epic cinematic landscape: vast mountain range at golden hour, dramatic clouds with god rays breaking through, sweeping orchestral feeling, deep shadows and brilliant highlights, anamorphic lens flare, film grain, IMAX quality, breathtaking scale",
+    jazz: "Intimate jazz club scene: warm spotlight on an empty stage with a saxophone on its stand, velvet curtains, smoky atmosphere, amber and deep burgundy tones, art deco details, vintage microphone, moody and sophisticated, film noir aesthetic",
+    electronic: "Futuristic cyberpunk cityscape at night: neon-lit streets reflecting on wet pavement, holographic displays, aurora borealis in the sky above skyscrapers, deep purple and electric blue palette, synthwave aesthetic, ultra-detailed digital art",
+  };
+
+  const prompt = prompts[styleId] ?? prompts.lofi;
+
+  try {
+    const result = await generateImage({ prompt });
+    const imageUrl = result.url ?? "";
+
+    if (imageUrl && db) {
+      await db.insert(styleImages).values({
+        styleId,
+        imageUrl,
+        prompt,
+        usageCount: 1,
+      });
+    }
+
+    return imageUrl;
+  } catch (err) {
+    console.error(`Failed to generate image for style ${styleId}:`, err);
+    return "";
+  }
+}
+
+// ============================================================
+// ffmpeg helpers for MP3/MP4 conversion
+// ============================================================
+async function convertToMp3(audioUrl: string): Promise<Buffer> {
+  const response = await axios.get(audioUrl, { responseType: "arraybuffer" });
+  const inputPath = path.join(tmpdir(), `muse-input-${nanoid()}.tmp`);
+  const outputPath = path.join(tmpdir(), `muse-output-${nanoid()}.mp3`);
+
+  try {
+    await writeFile(inputPath, Buffer.from(response.data));
+    await execFileAsync("ffmpeg", [
+      "-y", "-i", inputPath,
+      "-codec:a", "libmp3lame", "-b:a", "192k",
+      "-ar", "44100", "-ac", "2",
+      outputPath,
+    ], { timeout: 30000 });
+    const mp3Buffer = await readFile(outputPath);
+    return mp3Buffer;
+  } finally {
+    await unlink(inputPath).catch(() => {});
+    await unlink(outputPath).catch(() => {});
+  }
+}
+
+async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<Buffer> {
+  const [audioResp, imageResp] = await Promise.all([
+    axios.get(audioUrl, { responseType: "arraybuffer" }),
+    imageUrl ? axios.get(imageUrl, { responseType: "arraybuffer" }) : null,
+  ]);
+
+  const id = nanoid();
+  const audioPath = path.join(tmpdir(), `muse-audio-${id}.tmp`);
+  const imagePath = path.join(tmpdir(), `muse-image-${id}.png`);
+  const outputPath = path.join(tmpdir(), `muse-video-${id}.mp4`);
+
+  try {
+    await writeFile(audioPath, Buffer.from(audioResp.data));
+
+    if (imageResp) {
+      await writeFile(imagePath, Buffer.from(imageResp.data));
+      // Create MP4 with static image + audio
+      await execFileAsync("ffmpeg", [
+        "-y",
+        "-loop", "1", "-i", imagePath,
+        "-i", audioPath,
+        "-c:v", "libx264", "-tune", "stillimage",
+        "-c:a", "aac", "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        "-shortest",
+        "-movflags", "+faststart",
+        outputPath,
+      ], { timeout: 60000 });
+    } else {
+      // No image — create a simple black video with audio
+      await execFileAsync("ffmpeg", [
+        "-y",
+        "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=30",
+        "-i", audioPath,
+        "-c:v", "libx264",
+        "-c:a", "aac", "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        "-shortest",
+        "-movflags", "+faststart",
+        outputPath,
+      ], { timeout: 60000 });
+    }
+
+    const mp4Buffer = await readFile(outputPath);
+    return mp4Buffer;
+  } finally {
+    await unlink(audioPath).catch(() => {});
+    await unlink(imagePath).catch(() => {});
+    await unlink(outputPath).catch(() => {});
+  }
 }
 
 const FADE_INSTRUCTION = "The piece should have a natural, gentle fade-out ending over the last 3-4 seconds rather than stopping abruptly.";
@@ -185,14 +324,35 @@ export const appRouter = router({
         return { url };
       }),
 
-    /** Generate with Lyria 3 Clip (text prompt, no audio input) — max ~30s */
+    /** Create a generation session */
+    createSession: publicProcedure
+      .input(z.object({
+        originalAudioUrl: z.string().optional(),
+        melodyDescription: z.string().optional(),
+        inputMode: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const result = await db.insert(sessions).values({
+          userId: ctx.user?.id ?? null,
+          originalAudioUrl: input.originalAudioUrl ?? null,
+          melodyDescription: input.melodyDescription ?? null,
+          inputMode: input.inputMode ?? null,
+        });
+
+        const sessionId = result[0].insertId;
+        return { sessionId };
+      }),
+
+    /** Generate with Lyria 3 Clip — max ~30s */
     generateLyria: publicProcedure
-      .input(
-        z.object({
-          melodyDescription: z.string().optional(),
-          styleId: z.string(),
-        })
-      )
+      .input(z.object({
+        melodyDescription: z.string().optional(),
+        styleId: z.string(),
+        sessionId: z.number().optional(),
+      }))
       .mutation(async ({ input }) => {
         const style = STYLES.find((s) => s.id === input.styleId);
         if (!style) throw new Error(`Unknown style: ${input.styleId}`);
@@ -202,44 +362,82 @@ export const appRouter = router({
           fullPrompt = `${style.lyria_prompt} The melody should follow this pattern: ${input.melodyDescription}`;
         }
 
-        // Generate track name and audio in parallel
-        const [{ audioData, caption }, trackName] = await Promise.all([
+        // Generate track name, audio, and style image in parallel
+        const [{ audioData, caption }, trackName, imageUrl] = await Promise.all([
           generateWithLyria3(fullPrompt),
           generateTrackName(style.name, "reimagined"),
+          getOrGenerateStyleImage(style.id, style.name, style.color),
         ]);
 
         const key = `generated/lyria/${nanoid()}.mp3`;
-        const { url } = await storagePut(key, audioData, "audio/mpeg");
+        const { url: audioUrl } = await storagePut(key, audioData, "audio/mpeg");
+
+        // Save to DB
+        if (input.sessionId) {
+          const db = await getDb();
+          if (db) {
+            await db.insert(tracks).values({
+              sessionId: input.sessionId,
+              styleId: style.id,
+              variant: "reimagined",
+              trackName,
+              audioUrl,
+              imageUrl: imageUrl || null,
+              caption,
+              duration: 30,
+              status: "done",
+            });
+          }
+        }
 
         return {
           model: "lyria3" as const,
           styleId: style.id,
           styleName: style.name,
           color: style.color,
-          audioUrl: url,
+          audioUrl,
           caption,
           trackName,
+          imageUrl,
         };
       }),
 
     /** Generate with MusicGen (melody-conditioned) — max 30s */
     generateMusicGen: publicProcedure
-      .input(
-        z.object({
-          audioUrl: z.string(),
-          styleId: z.string(),
-          duration: z.number().min(8).max(30).default(30),
-        })
-      )
+      .input(z.object({
+        audioUrl: z.string(),
+        styleId: z.string(),
+        duration: z.number().min(8).max(30).default(30),
+        sessionId: z.number().optional(),
+      }))
       .mutation(async ({ input }) => {
         const style = STYLES.find((s) => s.id === input.styleId);
         if (!style) throw new Error(`Unknown style: ${input.styleId}`);
 
-        // Generate track name and audio in parallel
-        const [result, trackName] = await Promise.all([
+        // Generate track name, audio, and style image in parallel
+        const [result, trackName, imageUrl] = await Promise.all([
           generateWithMusicGen(input.audioUrl, style.musicgen_prompt, input.duration),
           generateTrackName(style.name, "faithful"),
+          getOrGenerateStyleImage(style.id, style.name, style.color),
         ]);
+
+        // Save to DB
+        if (input.sessionId) {
+          const db = await getDb();
+          if (db) {
+            await db.insert(tracks).values({
+              sessionId: input.sessionId,
+              styleId: style.id,
+              variant: "faithful",
+              trackName,
+              audioUrl: result.audioUrl,
+              imageUrl: imageUrl || null,
+              caption: "",
+              duration: input.duration,
+              status: "done",
+            });
+          }
+        }
 
         return {
           model: "musicgen" as const,
@@ -249,6 +447,89 @@ export const appRouter = router({
           audioUrl: result.audioUrl,
           caption: "",
           trackName,
+          imageUrl,
+        };
+      }),
+
+    /** Download as MP3 */
+    downloadMp3: publicProcedure
+      .input(z.object({ audioUrl: z.string(), trackName: z.string().optional() }))
+      .mutation(async ({ input }) => {
+        const mp3Buffer = await convertToMp3(input.audioUrl);
+        const key = `downloads/${nanoid()}.mp3`;
+        const { url } = await storagePut(key, mp3Buffer, "audio/mpeg");
+        return { url, filename: `${(input.trackName ?? "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp3` };
+      }),
+
+    /** Download as MP4 (image + audio) */
+    downloadMp4: publicProcedure
+      .input(z.object({
+        audioUrl: z.string(),
+        imageUrl: z.string().optional(),
+        trackName: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const mp4Buffer = await createMp4WithImage(input.audioUrl, input.imageUrl ?? "");
+        const key = `downloads/${nanoid()}.mp4`;
+        const { url } = await storagePut(key, mp4Buffer, "video/mp4");
+        return { url, filename: `${(input.trackName ?? "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4` };
+      }),
+
+    /** Pre-generate style images (can be called to seed the library) */
+    generateStyleImages: publicProcedure
+      .input(z.object({ styleId: z.string(), count: z.number().min(1).max(5).default(3) }))
+      .mutation(async ({ input }) => {
+        const style = STYLES.find((s) => s.id === input.styleId);
+        if (!style) throw new Error(`Unknown style: ${input.styleId}`);
+
+        const results: string[] = [];
+        for (let i = 0; i < input.count; i++) {
+          const url = await getOrGenerateStyleImage(style.id, style.name, style.color);
+          if (url) results.push(url);
+        }
+        return { images: results };
+      }),
+  }),
+
+  gallery: router({
+    /** List all generation sessions (most recent first) */
+    listSessions: publicProcedure
+      .input(z.object({ limit: z.number().min(1).max(50).default(20), offset: z.number().min(0).default(0) }).optional())
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { sessions: [], total: 0 };
+
+        const limit = input?.limit ?? 20;
+        const offset = input?.offset ?? 0;
+
+        const [sessionList, countResult] = await Promise.all([
+          db.select().from(sessions).orderBy(desc(sessions.createdAt)).limit(limit).offset(offset),
+          db.select({ count: sql<number>`count(*)` }).from(sessions),
+        ]);
+
+        return {
+          sessions: sessionList,
+          total: countResult[0]?.count ?? 0,
+        };
+      }),
+
+    /** Get a single session with all its tracks */
+    getSession: publicProcedure
+      .input(z.object({ sessionId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const [sessionResult, trackList] = await Promise.all([
+          db.select().from(sessions).where(eq(sessions.id, input.sessionId)).limit(1),
+          db.select().from(tracks).where(eq(tracks.sessionId, input.sessionId)),
+        ]);
+
+        if (sessionResult.length === 0) throw new Error("Session not found");
+
+        return {
+          session: sessionResult[0],
+          tracks: trackList,
         };
       }),
   }),

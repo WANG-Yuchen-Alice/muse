@@ -86,3 +86,38 @@ describe("music.generateMusicGen", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("music.generateStyleImages", () => {
+  it("rejects unknown style IDs", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.music.generateStyleImages({ styleId: "nonexistent", count: 1 })
+    ).rejects.toThrow("Unknown style");
+  });
+});
+
+describe("gallery.listSessions", () => {
+  it("returns sessions array and total count", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.gallery.listSessions({ limit: 10, offset: 0 });
+
+    expect(result).toHaveProperty("sessions");
+    expect(result).toHaveProperty("total");
+    expect(Array.isArray(result.sessions)).toBe(true);
+    expect(typeof result.total).toBe("number");
+  });
+});
+
+describe("gallery.getSession", () => {
+  it("rejects non-existent session", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.gallery.getSession({ sessionId: 999999 })
+    ).rejects.toThrow("Session not found");
+  });
+});
