@@ -15,5 +15,5 @@ describe("Replicate API Key", () => {
     expect(resp.status).toBe(200);
     const data = await resp.json();
     expect(data).toHaveProperty("username");
-  });
+  }, 15000);
 });

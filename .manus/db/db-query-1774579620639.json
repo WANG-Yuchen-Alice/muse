@@ -1,0 +1,19 @@
+{
+  "query": "SELECT COUNT(*) as session_count FROM sessions; SELECT COUNT(*) as track_count FROM tracks;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT COUNT(*) as session_count FROM sessions; SELECT COUNT(*) as track_count FROM tracks;",
+  "rows": [
+    {
+      "session_count": "0"
+    },
+    {
+      "session_count": "track_count"
+    },
+    {
+      "session_count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "session_count\n0\ntrack_count\n0\n",
+  "stderr": "",
+  "execution_time_ms": 1848
+}

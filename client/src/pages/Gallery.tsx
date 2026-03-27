@@ -1,10 +1,12 @@
 /**
  * Muse V2 — Gallery Page
- * Shows all past generation sessions with their tracks.
+ * Beautiful gallery of all past generation sessions.
+ * Shows original hum + generated pieces per session.
+ * Filter by style category.
  */
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Play,
@@ -15,6 +17,12 @@ import {
   Calendar,
   Mic,
   Piano,
+  Filter,
+  Sparkles,
+  Fingerprint,
+  ChevronDown,
+  ChevronUp,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -22,15 +30,25 @@ import { trpc } from "@/lib/trpc";
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
 
+const STYLE_META: Record<string, { name: string; color: string; emoji: string }> = {
+  lofi: { name: "Lo-fi Chill", color: "#FF6B9D", emoji: "🌧" },
+  cinematic: { name: "Cinematic Epic", color: "#00E5FF", emoji: "🎬" },
+  jazz: { name: "Smooth Jazz", color: "#FFB800", emoji: "🎷" },
+  electronic: { name: "Ambient Electronic", color: "#A78BFA", emoji: "🌌" },
+};
+
+const ALL_STYLES = ["all", "lofi", "cinematic", "jazz", "electronic"] as const;
+
 export default function Gallery() {
   const [, navigate] = useLocation();
   const { data, isLoading } = trpc.gallery.listSessions.useQuery({ limit: 50, offset: 0 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [styleFilter, setStyleFilter] = useState<string>("all");
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border/30 bg-void">
+      <header className="border-b border-border/30 bg-void sticky top-0 z-50">
         <div className="container flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <Button
@@ -57,18 +75,65 @@ export default function Gallery() {
       </header>
 
       <main className="flex-1 container py-8 max-w-5xl">
+        {/* Page title */}
+        <div className="text-center mb-6">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold mb-1">
+            <span className="gradient-cosmic-text">Your Creations</span>
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {data?.total ?? 0} session{(data?.total ?? 0) !== 1 ? "s" : ""} created
+          </p>
+        </div>
+
+        {/* Style filter chips */}
+        <div className="flex items-center justify-center gap-2 mb-8 flex-wrap">
+          {ALL_STYLES.map((sid) => {
+            const isActive = styleFilter === sid;
+            const meta = sid === "all" ? null : STYLE_META[sid];
+            return (
+              <button
+                key={sid}
+                onClick={() => setStyleFilter(sid)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-pointer ${
+                  isActive
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-border/20 bg-white/5 text-muted-foreground hover:bg-white/10"
+                }`}
+                style={
+                  isActive && meta
+                    ? { borderColor: `${meta.color}50`, background: `${meta.color}15`, color: meta.color }
+                    : {}
+                }
+              >
+                {sid === "all" ? (
+                  <>
+                    <Filter className="w-3 h-3 inline mr-1" />
+                    All Styles
+                  </>
+                ) : (
+                  <>
+                    <span className="mr-1">{meta?.emoji}</span>
+                    {meta?.name}
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading your creations...</p>
           </div>
         ) : !data || data.sessions.length === 0 ? (
           <div className="text-center py-20">
-            <Music2 className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
+            <Music2 className="w-16 h-16 mx-auto text-muted-foreground/20 mb-4" />
             <h2 className="font-display text-lg font-semibold text-foreground mb-2">
               No creations yet
             </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Hum a melody or play the piano to create your first piece.
+            <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
+              Hum a melody or play the piano to create your first piece. Each session generates 8 unique tracks across 4 styles.
             </p>
             <Button onClick={() => navigate("/")} className="gap-2">
               <Music2 className="w-4 h-4" />
@@ -76,7 +141,7 @@ export default function Gallery() {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             {data.sessions.map((session, i) => (
               <SessionCard
                 key={session.id}
@@ -86,6 +151,7 @@ export default function Gallery() {
                 onToggle={() =>
                   setExpandedId(expandedId === session.id ? null : session.id)
                 }
+                styleFilter={styleFilter}
               />
             ))}
           </div>
@@ -96,13 +162,14 @@ export default function Gallery() {
 }
 
 // ============================================================
-// Session Card — expandable to show tracks
+// Session Card — shows original input + expandable track grid
 // ============================================================
 function SessionCard({
   session,
   index,
   isExpanded,
   onToggle,
+  styleFilter,
 }: {
   session: {
     id: number;
@@ -114,6 +181,7 @@ function SessionCard({
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
+  styleFilter: string;
 }) {
   const { data: details, isLoading } = trpc.gallery.getSession.useQuery(
     { sessionId: session.id },
@@ -129,6 +197,23 @@ function SessionCard({
     minute: "2-digit",
   });
 
+  // Filter tracks by style
+  const filteredTracks = useMemo(() => {
+    if (!details?.tracks) return [];
+    if (styleFilter === "all") return details.tracks;
+    return details.tracks.filter((t) => t.styleId === styleFilter);
+  }, [details?.tracks, styleFilter]);
+
+  // Group tracks by style for display
+  const groupedByStyle = useMemo(() => {
+    const groups: Record<string, typeof filteredTracks> = {};
+    for (const t of filteredTracks) {
+      if (!groups[t.styleId]) groups[t.styleId] = [];
+      groups[t.styleId].push(t);
+    }
+    return groups;
+  }, [filteredTracks]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -137,77 +222,161 @@ function SessionCard({
       className="rounded-xl border border-border/20 overflow-hidden"
       style={{ background: "oklch(0.12 0.02 280)" }}
     >
-      {/* Session header */}
+      {/* Session header — always visible */}
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-4 p-4 hover:bg-white/5 transition-colors text-left cursor-pointer"
       >
-        <div className="w-10 h-10 rounded-lg bg-void-lighter flex items-center justify-center">
+        {/* Icon */}
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+          style={{
+            background: "linear-gradient(135deg, oklch(0.2 0.03 280), oklch(0.15 0.02 280))",
+          }}
+        >
           {session.inputMode === "piano" ? (
-            <Piano className="w-5 h-5 text-muted-foreground" />
+            <Piano className="w-5 h-5 text-cyan-400" />
           ) : (
-            <Mic className="w-5 h-5 text-muted-foreground" />
+            <Mic className="w-5 h-5 text-pink-400" />
           )}
         </div>
+
+        {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
+          <p className="text-sm font-semibold text-foreground">
             Session #{session.id}
           </p>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
             <Calendar className="w-3 h-3" />
             {formattedDate}
+            <span className="text-border">|</span>
+            <span className="capitalize">{session.inputMode ?? "hum"} input</span>
           </div>
+          {/* Melody description preview */}
+          {session.melodyDescription && (
+            <p className="text-xs text-muted-foreground/60 mt-1 truncate max-w-md">
+              {session.melodyDescription.slice(0, 80)}...
+            </p>
+          )}
         </div>
-        <div className="text-muted-foreground text-xs">
-          {isExpanded ? "▲" : "▼"}
+
+        {/* Expand indicator */}
+        <div className="text-muted-foreground shrink-0">
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4" />
+          ) : (
+            <ChevronDown className="w-4 h-4" />
+          )}
         </div>
       </button>
 
-      {/* Expanded tracks */}
-      {isExpanded && (
-        <div className="border-t border-border/10 p-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : !details || details.tracks.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No tracks found for this session.
-            </p>
-          ) : (
-            <>
-              {/* Original input */}
-              {session.originalAudioUrl && (
-                <div className="mb-4 p-3 rounded-lg bg-void-lighter">
-                  <p className="text-xs text-muted-foreground mb-2">Original Input</p>
-                  <audio
-                    src={session.originalAudioUrl}
-                    controls
-                    className="w-full h-8"
-                    style={{ filter: "invert(1) hue-rotate(180deg)" }}
-                  />
+      {/* Expanded content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-border/10 p-4">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8 gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Loading tracks...</span>
                 </div>
-              )}
+              ) : filteredTracks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No tracks found{styleFilter !== "all" ? ` for ${STYLE_META[styleFilter]?.name}` : ""}.
+                </p>
+              ) : (
+                <>
+                  {/* Original input audio */}
+                  {session.originalAudioUrl && (
+                    <div className="mb-5 p-3 rounded-lg bg-white/5 border border-border/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Mic className="w-3.5 h-3.5 text-pink-400" />
+                        <span className="text-xs font-medium text-foreground">
+                          Original Input
+                        </span>
+                      </div>
+                      <audio
+                        src={session.originalAudioUrl}
+                        controls
+                        className="w-full h-8"
+                        style={{ filter: "invert(1) hue-rotate(180deg)" }}
+                      />
+                    </div>
+                  )}
 
-              {/* Tracks grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {details.tracks.map((track) => (
-                  <GalleryTrackCard key={track.id} track={track} />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+                  {/* Tracks grouped by style */}
+                  <div className="flex flex-col gap-5">
+                    {Object.entries(groupedByStyle).map(([styleId, styleTracks]) => {
+                      const meta = STYLE_META[styleId];
+                      if (!meta) return null;
+
+                      // Separate faithful and reimagined
+                      const faithful = styleTracks.find((t) => t.variant === "faithful");
+                      const reimagined = styleTracks.find((t) => t.variant === "reimagined");
+
+                      return (
+                        <div key={styleId}>
+                          {/* Style header */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{ background: meta.color }}
+                            />
+                            <span
+                              className="text-xs font-semibold"
+                              style={{ color: meta.color }}
+                            >
+                              {meta.name}
+                            </span>
+                          </div>
+
+                          {/* Two tracks side by side */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {faithful && (
+                              <GalleryTrackCard
+                                track={faithful}
+                                variantIcon={<Fingerprint className="w-3 h-3 text-cyan-400" />}
+                                variantLabel="Your Melody"
+                                color={meta.color}
+                              />
+                            )}
+                            {reimagined && (
+                              <GalleryTrackCard
+                                track={reimagined}
+                                variantIcon={<Sparkles className="w-3 h-3 text-purple-400" />}
+                                variantLabel="Reimagined"
+                                color={meta.color}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
 // ============================================================
-// Gallery Track Card — compact card with image + play
+// Gallery Track Card — compact with image, play, download
 // ============================================================
 function GalleryTrackCard({
   track,
+  variantIcon,
+  variantLabel,
+  color,
 }: {
   track: {
     id: number;
@@ -218,11 +387,15 @@ function GalleryTrackCard({
     imageUrl: string | null;
     status: string;
   };
+  variantIcon: React.ReactNode;
+  variantLabel: string;
+  color: string;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const downloadMp3 = trpc.music.downloadMp3.useMutation();
-  const [downloading, setDownloading] = useState(false);
+  const downloadMp4 = trpc.music.downloadMp4.useMutation();
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const togglePlay = useCallback(() => {
     if (!track.audioUrl) return;
@@ -239,42 +412,47 @@ function GalleryTrackCard({
     }
   }, [isPlaying, track.audioUrl]);
 
-  const handleDownload = useCallback(async () => {
-    if (!track.audioUrl || downloading) return;
-    setDownloading(true);
-    try {
-      const result = await downloadMp3.mutateAsync({
-        audioUrl: track.audioUrl,
-        trackName: track.trackName ?? "muse-track",
-      });
-      const a = document.createElement("a");
-      a.href = result.url;
-      a.download = result.filename;
-      a.target = "_blank";
-      a.click();
-    } catch (err) {
-      console.error("Download failed:", err);
-    } finally {
-      setDownloading(false);
-    }
-  }, [track.audioUrl, track.trackName, downloadMp3, downloading]);
-
-  const STYLE_COLORS: Record<string, string> = {
-    lofi: "#FF6B9D",
-    cinematic: "#00E5FF",
-    jazz: "#FFB800",
-    electronic: "#A78BFA",
-  };
-
-  const color = STYLE_COLORS[track.styleId] ?? "#888";
+  const handleDownload = useCallback(
+    async (type: "mp3" | "mp4") => {
+      if (!track.audioUrl || downloading) return;
+      setDownloading(type);
+      try {
+        let result: { url: string; filename: string };
+        if (type === "mp3") {
+          result = await downloadMp3.mutateAsync({
+            audioUrl: track.audioUrl,
+            trackName: track.trackName ?? "muse-track",
+          });
+        } else {
+          result = await downloadMp4.mutateAsync({
+            audioUrl: track.audioUrl,
+            imageUrl: track.imageUrl ?? undefined,
+            trackName: track.trackName ?? "muse-track",
+          });
+        }
+        const a = document.createElement("a");
+        a.href = result.url;
+        a.download = result.filename;
+        a.target = "_blank";
+        a.click();
+      } catch (err) {
+        console.error(`${type} download failed:`, err);
+      } finally {
+        setDownloading(null);
+      }
+    },
+    [track.audioUrl, track.trackName, track.imageUrl, downloadMp3, downloadMp4, downloading]
+  );
 
   return (
     <div
-      className="rounded-lg overflow-hidden border border-border/10"
+      className={`rounded-lg overflow-hidden border transition-all ${
+        isPlaying ? "border-primary/30 shadow-md shadow-primary/5" : "border-border/10"
+      }`}
       style={{ background: "oklch(0.1 0.02 280)" }}
     >
       {/* Image area */}
-      <div className="relative" style={{ height: 100 }}>
+      <div className="relative" style={{ height: 120 }}>
         {track.imageUrl ? (
           <img
             src={track.imageUrl}
@@ -289,7 +467,7 @@ function GalleryTrackCard({
             }}
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
         {/* Play button */}
         {track.audioUrl && (
@@ -297,50 +475,67 @@ function GalleryTrackCard({
             onClick={togglePlay}
             className="absolute inset-0 flex items-center justify-center group cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                isPlaying
+                  ? "bg-white/25 backdrop-blur-sm"
+                  : "bg-white/20 backdrop-blur-sm opacity-80 group-hover:opacity-100"
+              }`}
+            >
               {isPlaying ? (
-                <Pause className="w-3.5 h-3.5 text-white" />
+                <Pause className="w-4 h-4 text-white" />
               ) : (
-                <Play className="w-3.5 h-3.5 text-white ml-0.5" />
+                <Play className="w-4 h-4 text-white ml-0.5" />
               )}
             </div>
           </button>
         )}
 
-        {/* Status badge */}
-        {track.status !== "done" && (
-          <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[9px] bg-black/60 text-muted-foreground">
-            {track.status}
+        {/* Track name at bottom */}
+        {track.trackName && (
+          <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2">
+            <p className="text-xs font-semibold text-white drop-shadow-lg truncate">
+              {track.trackName}
+            </p>
           </div>
         )}
       </div>
 
-      {/* Info */}
-      <div className="p-2">
-        <p className="text-xs font-medium text-foreground truncate">
-          {track.trackName || track.styleId}
-        </p>
-        <div className="flex items-center justify-between mt-1">
-          <span
-            className="text-[10px]"
-            style={{ color }}
-          >
-            {track.variant === "faithful" ? "Melody" : "Reimagined"}
-          </span>
-          {track.audioUrl && (
+      {/* Info + downloads */}
+      <div className="p-2.5">
+        <div className="flex items-center gap-1.5 mb-2">
+          {variantIcon}
+          <span className="text-[10px] text-muted-foreground">{variantLabel}</span>
+        </div>
+
+        {track.audioUrl && (
+          <div className="flex gap-1.5">
             <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              onClick={() => handleDownload("mp3")}
+              disabled={!!downloading}
+              className="flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
             >
-              {downloading ? (
+              {downloading === "mp3" ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
                 <Music2 className="w-3 h-3" />
               )}
+              MP3
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => handleDownload("mp4")}
+              disabled={!!downloading}
+              className="flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {downloading === "mp4" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Video className="w-3 h-3" />
+              )}
+              MP4
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

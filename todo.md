@@ -38,3 +38,9 @@
 - [x] More creative/poetic track names (like "Last Train Home", "The Night Walk")
 - [x] Build Gallery page showing all historical generation sessions
 - [x] Navigation: add Gallery tab to header
+- [x] Results page: entertaining loading animation + "music in preparation" messaging
+- [x] Results page: progressive reveal — show image/title first while audio generates
+- [x] Results page: generate all 8 tracks in parallel (not sequential per style)
+- [x] Gallery page: better visual design with track previews
+- [x] Gallery page: category/style filter (lo-fi, cinematic, jazz, electronic)
+- [x] Gallery page: show original hum + generated pieces per session
