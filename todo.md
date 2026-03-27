@@ -66,3 +66,6 @@
 - [x] Bug: Lyria 3 intermittent failures — not style-specific, API-side issue
 - [x] Fix GitHub push: repo already synced, was a temporary token issue
 - [x] Feature: Fun compliment card when Lyria 3 (Reimagined) fails — amber/gold card with random witty compliments + "Try again anyway" button
+- [x] Merge feature/video-gen branch from GitHub (Video Generation + Social Share)
+- [x] DB migration: add videoUrl column to tracks table
+- [x] Verify new features: Video Studio, Share page, Community gallery — server running, 15 tests pass, 0 TS errors

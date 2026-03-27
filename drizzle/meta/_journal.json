@@ -22,6 +22,13 @@
       "when": 1774589799631,
       "tag": "0002_lyrical_snowbird",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1774612944598,
+      "tag": "0003_tricky_firebird",
+      "breakpoints": true
     }
   ]
 }
