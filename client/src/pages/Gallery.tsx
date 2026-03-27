@@ -1,5 +1,5 @@
 /**
- * Muse V2 — Gallery Page
+ * Muse — Gallery Page
  * Beautiful gallery of all past generation sessions.
  * Shows original hum + generated pieces per session.
  * Filter by style category.

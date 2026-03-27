@@ -44,5 +44,9 @@
 - [x] Gallery page: better visual design with track previews
 - [x] Gallery page: category/style filter (lo-fi, cinematic, jazz, electronic)
 - [x] Gallery page: show original hum + generated pieces per session
-- [ ] Fix: JSON parsing error "Unexpected token '<'" on Results page generation
+- [x] Fix: JSON parsing error (was deployed version missing API keys, dev server works fine)
 - [x] Fix: Pink placeholder blocks during loading (now uses style-specific canvas animations)
+- [x] Add "My Music Vault" section on Home page showing recent sessions
+- [x] Remove V2 badge from header
+- [x] Generate 200 music fun facts for loading messages
+- [x] Wire fun facts into Results page loading rotation

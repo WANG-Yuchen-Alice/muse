@@ -1,12 +1,12 @@
 /**
- * Muse V2 — Input Page
- * Record a hum or play a 2-octave piano keyboard, then generate music
- * Captures audio blob for MusicGen + pitch detection text for Lyria 3
+ * Muse — Input Page
+ * Record a hum or play a 2-octave piano keyboard, then generate music.
+ * Includes "My Music Vault" section showing recent sessions.
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Square, Piano, Wand2, Trash2 } from "lucide-react";
+import { Mic, Square, Piano, Wand2, Trash2, Music, Play, Pause, ChevronRight, Vault } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
@@ -47,7 +47,7 @@ const BLACK_KEYS = NOTES.filter((n) => n.isBlack);
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 function freqToNoteName(freq: number): string {
-  const noteNum = 12 * (Math.log2(freq / 440)) + 69;
+  const noteNum = 12 * Math.log2(freq / 440) + 69;
   const rounded = Math.round(noteNum);
   const octave = Math.floor(rounded / 12) - 1;
   const name = NOTE_NAMES[rounded % 12];
@@ -90,6 +90,22 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
   return null;
 }
 
+// Style colors for vault track thumbnails
+const STYLE_COLORS: Record<string, string> = {
+  "lofi": "#FF6B9D",
+  "cinematic": "#00D4FF",
+  "jazz": "#FFB800",
+  "electronic": "#A78BFA",
+};
+
+function getStyleColor(style: string): string {
+  const key = style.toLowerCase().replace(/[^a-z]/g, "");
+  for (const [k, v] of Object.entries(STYLE_COLORS)) {
+    if (key.includes(k)) return v;
+  }
+  return "#888";
+}
+
 export default function Home() {
   const [, navigate] = useLocation();
   const [mode, setMode] = useState<InputMode>("hum");
@@ -118,7 +134,14 @@ export default function Home() {
   const pianoTimerRef = useRef<number | null>(null);
   const pianoStartTimeRef = useRef<number>(0);
 
+  // Vault: mini audio player
+  const [vaultPlayingUrl, setVaultPlayingUrl] = useState<string | null>(null);
+  const vaultAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const uploadAudio = trpc.music.uploadAudio.useMutation();
+
+  // Fetch recent sessions for My Music Vault
+  const { data: galleryData } = trpc.gallery.listSessions.useQuery({ limit: 6, offset: 0 });
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
@@ -210,7 +233,6 @@ export default function Home() {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      // Also connect to piano recording destination if recording
       if (pianoDestRef.current) {
         gain.connect(pianoDestRef.current);
       }
@@ -225,7 +247,7 @@ export default function Home() {
     [getAudioCtx, isPianoRecording]
   );
 
-  // ---- Piano Recording (captures actual audio for MusicGen) ----
+  // ---- Piano Recording ----
   const startPianoRecording = useCallback(() => {
     const ctx = getAudioCtx();
     const dest = ctx.createMediaStreamDestination();
@@ -281,7 +303,6 @@ export default function Home() {
     if (!audioBlob) return;
     setIsUploading(true);
     try {
-      // Upload audio blob for MusicGen
       const buffer = await audioBlob.arrayBuffer();
       const base64 = btoa(
         new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
@@ -291,7 +312,6 @@ export default function Home() {
         mimeType: audioBlob.type,
       });
 
-      // Build melody description for Lyria 3
       let melodyDesc = "";
       if (mode === "hum" && detectedNotes.length > 0) {
         const uniqueSeq = detectedNotes.filter((n, i) => i === 0 || n !== detectedNotes[i - 1]);
@@ -305,7 +325,6 @@ export default function Home() {
         } pattern, played at a ${noteSeq.length <= 6 ? "slow" : "moderate"} tempo.`;
       }
 
-      // Navigate with both audioUrl (for MusicGen) and melody description (for Lyria 3)
       navigate(
         `/results?audio=${encodeURIComponent(audioUrl)}&melody=${encodeURIComponent(melodyDesc)}`
       );
@@ -325,7 +344,32 @@ export default function Home() {
     };
   }, []);
 
+  // Vault mini player
+  const toggleVaultPlay = useCallback((audioUrl: string) => {
+    if (vaultPlayingUrl === audioUrl) {
+      vaultAudioRef.current?.pause();
+      setVaultPlayingUrl(null);
+    } else {
+      if (vaultAudioRef.current) {
+        vaultAudioRef.current.pause();
+      }
+      const audio = new Audio(audioUrl);
+      audio.onended = () => setVaultPlayingUrl(null);
+      audio.play();
+      vaultAudioRef.current = audio;
+      setVaultPlayingUrl(audioUrl);
+    }
+  }, [vaultPlayingUrl]);
+
+  useEffect(() => {
+    return () => {
+      vaultAudioRef.current?.pause();
+    };
+  }, []);
+
   const currentNotes = mode === "hum" ? detectedNotes : playedNotes.map((n) => n.note);
+
+  const recentSessions = galleryData?.sessions ?? [];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -335,7 +379,19 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <img src={LOGO} alt="Muse" className="w-8 h-8" />
             <span className="font-display text-xl font-bold text-foreground">Muse</span>
-            <span className="text-xs text-muted-foreground ml-1">V2</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {recentSessions.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/gallery")}
+                className="gap-2 text-muted-foreground hover:text-foreground"
+              >
+                <Vault className="w-4 h-4" />
+                My Music Vault
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -562,6 +618,166 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* ============================================================ */}
+      {/* My Music Vault — Recent Sessions */}
+      {/* ============================================================ */}
+      {recentSessions.length > 0 && (
+        <section className="border-t border-border/20 bg-void/50 py-10 px-4">
+          <div className="container max-w-5xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Vault className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-display text-lg font-bold text-foreground">My Music Vault</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {galleryData?.total ?? 0} session{(galleryData?.total ?? 0) !== 1 ? "s" : ""} created
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/gallery")}
+                className="gap-1 text-muted-foreground hover:text-foreground"
+              >
+                View all
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentSessions.map((session) => (
+                <VaultSessionCard
+                  key={session.id}
+                  session={session}
+                  vaultPlayingUrl={vaultPlayingUrl}
+                  onTogglePlay={toggleVaultPlay}
+                  onViewSession={() => navigate(`/gallery?session=${session.id}`)}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
+  );
+}
+
+// ============================================================
+// VaultSessionCard — compact card for a recent session
+// ============================================================
+function VaultSessionCard({
+  session,
+  vaultPlayingUrl,
+  onTogglePlay,
+  onViewSession,
+}: {
+  session: {
+    id: number;
+    melodyDescription: string | null;
+    inputMode: string | null;
+    createdAt: Date;
+  };
+  vaultPlayingUrl: string | null;
+  onTogglePlay: (url: string) => void;
+  onViewSession: () => void;
+}) {
+  // Fetch tracks for this session
+  const { data } = trpc.gallery.getSession.useQuery({ sessionId: session.id });
+  const sessionTracks = data?.tracks ?? [];
+
+  const dateStr = new Date(session.createdAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-border/20 overflow-hidden cursor-pointer hover:border-border/40 transition-all group"
+      style={{ background: "oklch(0.13 0.02 280)" }}
+      onClick={onViewSession}
+    >
+      {/* Track thumbnails grid */}
+      <div className="grid grid-cols-4 gap-0.5 p-0.5">
+        {sessionTracks.slice(0, 4).map((track) => (
+          <div
+            key={track.id}
+            className="relative aspect-square overflow-hidden"
+          >
+            {track.imageUrl ? (
+              <img src={track.imageUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{
+                  background: `linear-gradient(135deg, ${getStyleColor(track.styleId ?? "")}20, oklch(0.1 0.02 280))`,
+                }}
+              >
+                <Music className="w-4 h-4" style={{ color: getStyleColor(track.styleId ?? ""), opacity: 0.5 }} />
+              </div>
+            )}
+          </div>
+        ))}
+        {sessionTracks.length < 4 &&
+          Array.from({ length: 4 - sessionTracks.length }).map((_, i) => (
+            <div
+              key={`empty-${i}`}
+              className="aspect-square"
+              style={{ background: "oklch(0.1 0.02 280)" }}
+            />
+          ))}
+      </div>
+
+      {/* Info */}
+      <div className="p-3">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-xs text-muted-foreground">{dateStr}</p>
+          <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+            {session.inputMode === "piano" ? "Piano" : "Hum"}
+          </span>
+        </div>
+        <p className="text-xs text-foreground/70 line-clamp-1">
+          {sessionTracks.length > 0
+            ? sessionTracks.map((t) => t.trackName).filter(Boolean).slice(0, 3).join(" / ")
+            : "No tracks yet"}
+        </p>
+
+        {/* Quick play buttons for first 2 tracks */}
+        {sessionTracks.length > 0 && (
+          <div className="flex gap-1.5 mt-2">
+            {sessionTracks.slice(0, 2).map((track) =>
+              track.audioUrl ? (
+                <button
+                  key={track.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePlay(track.audioUrl!);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] transition-all hover:bg-white/10"
+                  style={{
+                    border: `1px solid ${getStyleColor(track.styleId ?? "")}30`,
+                    color: getStyleColor(track.styleId ?? ""),
+                  }}
+                >
+                  {vaultPlayingUrl === track.audioUrl ? (
+                    <Pause className="w-2.5 h-2.5" />
+                  ) : (
+                    <Play className="w-2.5 h-2.5" />
+                  )}
+                  <span className="truncate max-w-[80px]">{track.trackName ?? track.styleId}</span>
+                </button>
+              ) : null
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Muse V2 — Results Page
+ * Muse — Results Page
  * Entertaining loading experience with progressive reveal.
  * All 8 tracks fire in parallel. Images/titles show first, audio fills in.
  * AI background images + audio spectrum histogram overlay.
@@ -23,23 +23,12 @@ import {
 import { Button } from "@/components/ui/button";
 import StyleAnimation from "@/components/StyleAnimation";
 import { trpc } from "@/lib/trpc";
+import { MUSIC_FACTS } from "@shared/musicFacts";
 
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
 
-// Fun loading messages that rotate
-const LOADING_MESSAGES = [
-  "Composing your melody into something magical...",
-  "The AI orchestra is warming up...",
-  "Mixing frequencies and feelings...",
-  "Turning your notes into a symphony...",
-  "Sprinkling some musical stardust...",
-  "Finding the perfect harmony...",
-  "Weaving melodies across dimensions...",
-  "Your music is almost ready to shine...",
-  "Tuning the final notes...",
-  "Adding the finishing touches...",
-];
+const LOADING_MESSAGES = MUSIC_FACTS;
 
 type TrackStatus = "pending" | "generating" | "done" | "error";
 
@@ -82,13 +71,13 @@ export default function Results() {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const generationStartedRef = useRef(false);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
-  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(() => Math.floor(Math.random() * LOADING_MESSAGES.length));
 
-  // Rotate loading messages
+  // Rotate loading messages (every 5s for readability with fun facts)
   useEffect(() => {
     const interval = setInterval(() => {
       setLoadingMsgIdx((prev) => (prev + 1) % LOADING_MESSAGES.length);
-    }, 3500);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -410,8 +399,9 @@ export default function Results() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.3 }}
-                  className="text-muted-foreground text-sm mb-3"
+                  className="text-muted-foreground text-sm mb-3 italic max-w-md mx-auto"
                 >
+                  <span className="not-italic">Did you know?</span>{" "}
                   {LOADING_MESSAGES[loadingMsgIdx]}
                 </motion.p>
               </AnimatePresence>
