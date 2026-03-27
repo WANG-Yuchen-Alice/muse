@@ -689,7 +689,68 @@ function TrackCard({
 
   // Error state
   if (track.status === "error") {
-    // Friendly error message
+    // For Reimagined (Lyria 3) failures, show a fun compliment card
+    if (track.variant === "reimagined") {
+      const compliments = [
+        "Your melody is already perfect — I couldn't improve it 🤷‍♂️",
+        "Even AI knows when not to mess with a masterpiece ✨",
+        "I tried reimagining this, but honestly? The original slaps too hard 🔥",
+        "Some melodies are born perfect. This is one of them 💎",
+        "The AI listened, paused, and said: 'Nah, this one's already a vibe' 🎧",
+        "Reimagine this? Please. You already nailed it 👏",
+        "AI tried 3 times and gave up — your taste is just too good 😎",
+        "Not every melody needs a remix. Yours is chef's kiss as-is 🤌",
+      ];
+      const compliment = compliments[Math.floor(Math.random() * compliments.length)];
+
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl overflow-hidden border border-amber-500/30"
+          style={{ background: "linear-gradient(135deg, oklch(0.15 0.04 80), oklch(0.12 0.02 280))" }}
+        >
+          <div className="relative flex items-center justify-center" style={{ height: 200 }}>
+            <div className="absolute inset-0 opacity-10">
+              <StyleAnimation
+                isPlaying={false}
+                color="#F59E0B"
+                styleId={track.styleId}
+                width={400}
+                height={200}
+              />
+            </div>
+            <div className="text-center p-5 relative z-10">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.2 }}
+                className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-3"
+              >
+                <Sparkles className="w-6 h-6 text-amber-400" />
+              </motion.div>
+              <p className="text-sm text-amber-200/90 font-medium leading-relaxed mb-3">{compliment}</p>
+              {onRetry && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRetry}
+                  className="gap-1.5 text-xs h-7 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Try again anyway
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="p-3">
+            <p className="text-[11px] text-amber-400/60">{track.variantLabel}</p>
+          </div>
+        </motion.div>
+      );
+    }
+
+    // For Faithful (MusicGen) failures, show standard error
     const rawErr = track.error ?? "Generation failed";
     const friendlyMsg = rawErr.toLowerCase().includes("fetch")
       ? "Connection timed out. The AI model took too long to respond."

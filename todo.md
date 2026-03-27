@@ -63,3 +63,6 @@
 - [x] Bug: Lyria 3 "did not return audio data" — added server-side auto-retry (3 attempts with backoff)
 - [x] Feature: Session naming — LLM generates creative 2-4 word names (e.g. "Midnight Reverie")
 - [x] Research: Lyria 3 supports lyrics/vocals, MusicGen is instrumental only
+- [x] Bug: Lyria 3 intermittent failures — not style-specific, API-side issue
+- [x] Fix GitHub push: repo already synced, was a temporary token issue
+- [x] Feature: Fun compliment card when Lyria 3 (Reimagined) fails — amber/gold card with random witty compliments + "Try again anyway" button
