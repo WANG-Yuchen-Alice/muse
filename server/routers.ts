@@ -163,6 +163,12 @@ async function getOrGenerateStyleImage(styleId: string, styleName: string, color
     cinematic: "Epic cinematic landscape: vast mountain range at golden hour, dramatic clouds with god rays breaking through, sweeping orchestral feeling, deep shadows and brilliant highlights, anamorphic lens flare, film grain, IMAX quality, breathtaking scale",
     jazz: "Intimate jazz club scene: warm spotlight on an empty stage with a saxophone on its stand, velvet curtains, smoky atmosphere, amber and deep burgundy tones, art deco details, vintage microphone, moody and sophisticated, film noir aesthetic",
     electronic: "Futuristic cyberpunk cityscape at night: neon-lit streets reflecting on wet pavement, holographic displays, aurora borealis in the sky above skyscrapers, deep purple and electric blue palette, synthwave aesthetic, ultra-detailed digital art",
+    tiktok: "Vibrant neon-lit content creator setup: ring light glowing, colorful LED strips, smartphone on tripod, confetti and sparkles in the air, dynamic motion blur, bold pink and red palette, energetic and trendy, social media aesthetic",
+    upbeat: "Bright sunny beach boardwalk scene: golden hour sunlight, palm trees swaying, colorful surfboards, ice cream stand, people dancing, warm turquoise and coral tones, summer festival vibes, joyful and carefree atmosphere",
+    rock: "Dramatic rock concert stage: powerful spotlights cutting through smoke, electric guitar silhouette, Marshall amplifier stacks, leather and chrome aesthetic, deep red and black palette, raw energy, concert photography style",
+    rnb: "Luxurious late-night penthouse scene: city skyline through floor-to-ceiling windows, soft purple ambient lighting, velvet furniture, candles flickering, rose petals, warm pink and purple tones, intimate and romantic atmosphere",
+    classical: "Grand concert hall interior: ornate golden ceiling, crystal chandelier, Steinway grand piano center stage under a single warm spotlight, red velvet seats, baroque architecture, elegant and timeless, warm amber and cream tones",
+    edm: "Massive music festival at night: laser beams cutting through fog, giant LED screens with geometric patterns, crowd silhouettes with raised hands, confetti cannons, vivid green and blue neon palette, euphoric energy, wide-angle photography",
   };
 
   const prompt = prompts[styleId] ?? prompts.lofi;
@@ -272,6 +278,7 @@ const STYLES = [
     lyria_prompt: `Lo-fi chill hip hop beat with warm vinyl crackle, mellow piano chords, soft brushed drums, and a gentle bass line. Cozy rainy day atmosphere, mellow and deeply relaxing. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
     musicgen_prompt: "lo-fi chill hip hop beat, warm vinyl crackle, mellow piano, soft brushed drums, gentle bass, cozy rainy day, relaxing, gentle fade out ending",
     color: "#FF6B9D",
+    emoji: "🌧",
   },
   {
     id: "cinematic",
@@ -279,6 +286,7 @@ const STYLES = [
     lyria_prompt: `Epic cinematic orchestral piece with soaring strings, powerful brass, and thundering timpani. Starts quiet with a solo melody, builds to a massive crescendo with full orchestra. Dramatic and emotional film score. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
     musicgen_prompt: "epic cinematic orchestral, soaring strings, powerful brass, thundering timpani, dramatic crescendo, emotional film score, gentle fade out ending",
     color: "#00E5FF",
+    emoji: "🎬",
   },
   {
     id: "jazz",
@@ -286,6 +294,7 @@ const STYLES = [
     lyria_prompt: `Smooth jazz piece with a warm saxophone melody over gentle piano comping, walking bass line, and brushed drums. Relaxed swing feel, late-night jazz club atmosphere. Sophisticated and warm. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
     musicgen_prompt: "smooth jazz, warm saxophone melody, gentle piano, walking bass, brushed drums, relaxed swing, late-night jazz club, gentle fade out ending",
     color: "#FFB800",
+    emoji: "🎷",
   },
   {
     id: "electronic",
@@ -293,6 +302,55 @@ const STYLES = [
     lyria_prompt: `Ambient electronic piece with dreamy synthesizers, atmospheric pads, subtle arpeggios, and ethereal textures. Floating deep space vibes, meditative and immersive. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
     musicgen_prompt: "ambient electronic, dreamy synthesizers, atmospheric pads, subtle arpeggios, ethereal textures, deep space, meditative, gentle fade out ending",
     color: "#A78BFA",
+    emoji: "🌌",
+  },
+  {
+    id: "tiktok",
+    name: "TikTok Viral",
+    lyria_prompt: `Catchy viral TikTok-style pop beat with punchy 808 bass, snappy hi-hats, bright synth hooks, and an infectious earworm melody. High energy, trendy, and instantly memorable. Perfect for short-form video content. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
+    musicgen_prompt: "catchy viral tiktok pop beat, punchy 808 bass, snappy hi-hats, bright synth hooks, earworm melody, high energy trendy, gentle fade out ending",
+    color: "#FF3B5C",
+    emoji: "🔥",
+  },
+  {
+    id: "upbeat",
+    name: "Upbeat Pop",
+    lyria_prompt: `Upbeat and cheerful pop track with bright acoustic guitar strumming, lively hand claps, warm piano chords, and a bouncy bass line. Feel-good summer vibes, optimistic and energizing. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
+    musicgen_prompt: "upbeat cheerful pop, bright acoustic guitar, lively hand claps, warm piano, bouncy bass, feel-good summer vibes, optimistic, gentle fade out ending",
+    color: "#22D3EE",
+    emoji: "☀️",
+  },
+  {
+    id: "rock",
+    name: "Rock",
+    lyria_prompt: `Powerful rock track with driving electric guitar riffs, thundering drums, deep bass grooves, and soaring lead guitar solos. Raw energy with a classic rock feel, building to an anthemic chorus. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
+    musicgen_prompt: "powerful rock, driving electric guitar riffs, thundering drums, deep bass grooves, soaring lead guitar, raw energy classic rock, gentle fade out ending",
+    color: "#EF4444",
+    emoji: "🎸",
+  },
+  {
+    id: "rnb",
+    name: "R&B Soul",
+    lyria_prompt: `Smooth R&B soul track with silky Rhodes piano, warm bass, gentle finger snaps, lush string pads, and a sultry groove. Late-night romantic atmosphere, intimate and soulful. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
+    musicgen_prompt: "smooth R&B soul, silky Rhodes piano, warm bass, gentle finger snaps, lush strings, sultry groove, late-night romantic, intimate, gentle fade out ending",
+    color: "#F472B6",
+    emoji: "💜",
+  },
+  {
+    id: "classical",
+    name: "Classical Piano",
+    lyria_prompt: `Elegant classical piano piece in the style of Chopin or Debussy. Flowing arpeggios, expressive dynamics, delicate ornaments, and rich harmonic progressions. Intimate recital hall atmosphere, deeply emotional and refined. Solo piano, no other instruments. ${FADE_INSTRUCTION}`,
+    musicgen_prompt: "elegant classical piano, Chopin style, flowing arpeggios, expressive dynamics, delicate ornaments, rich harmonics, intimate recital, emotional, gentle fade out ending",
+    color: "#D4A574",
+    emoji: "🎹",
+  },
+  {
+    id: "edm",
+    name: "EDM / Dance",
+    lyria_prompt: `High-energy EDM dance track with pulsing four-on-the-floor kick, massive synth drops, euphoric build-ups, crisp claps, and shimmering risers. Festival main stage energy, powerful and uplifting. Instrumental only, no vocals. ${FADE_INSTRUCTION}`,
+    musicgen_prompt: "high-energy EDM dance, pulsing four-on-the-floor kick, massive synth drops, euphoric build-ups, crisp claps, shimmering risers, festival energy, gentle fade out ending",
+    color: "#10B981",
+    emoji: "🪩",
   },
 ];
 
@@ -310,7 +368,7 @@ export const appRouter = router({
   music: router({
     /** Get available style options */
     getStyles: publicProcedure.query(() => {
-      return STYLES.map((s) => ({ id: s.id, name: s.name, color: s.color }));
+      return STYLES.map((s) => ({ id: s.id, name: s.name, color: s.color, emoji: s.emoji }));
     }),
 
     /** Upload recorded audio (base64) and return a URL for MusicGen */
@@ -509,6 +567,38 @@ export const appRouter = router({
 
         return {
           sessions: sessionList,
+          total: countResult[0]?.count ?? 0,
+        };
+      }),
+
+    /** List individual tracks (optionally filtered by style), most recent first */
+    listTracks: publicProcedure
+      .input(z.object({
+        styleId: z.string().optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { tracks: [], total: 0 };
+
+        const limit = input?.limit ?? 50;
+        const offset = input?.offset ?? 0;
+        const styleId = input?.styleId;
+
+        const baseWhere = styleId ? eq(tracks.styleId, styleId) : undefined;
+
+        const [trackList, countResult] = await Promise.all([
+          baseWhere
+            ? db.select().from(tracks).where(baseWhere).orderBy(desc(tracks.createdAt)).limit(limit).offset(offset)
+            : db.select().from(tracks).orderBy(desc(tracks.createdAt)).limit(limit).offset(offset),
+          baseWhere
+            ? db.select({ count: sql<number>`count(*)` }).from(tracks).where(baseWhere)
+            : db.select({ count: sql<number>`count(*)` }).from(tracks),
+        ]);
+
+        return {
+          tracks: trackList,
           total: countResult[0]?.count ?? 0,
         };
       }),

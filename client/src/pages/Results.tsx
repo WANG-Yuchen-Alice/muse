@@ -55,8 +55,18 @@ export default function Results() {
   const audioUrl = params.get("audio") ?? "";
   const melodyDescription = params.get("melody") ?? "";
   const inputMode = params.get("mode") ?? "hum";
+  const selectedStyleIds = useMemo(() => {
+    const raw = params.get("styles") ?? "";
+    return raw ? raw.split(",").filter(Boolean) : [];
+  }, [params]);
 
-  const { data: styles } = trpc.music.getStyles.useQuery();
+  const { data: allStyles } = trpc.music.getStyles.useQuery();
+  // Filter to only selected styles (or fallback to all if none specified)
+  const styles = useMemo(() => {
+    if (!allStyles) return undefined;
+    if (selectedStyleIds.length === 0) return allStyles;
+    return allStyles.filter((s) => selectedStyleIds.includes(s.id));
+  }, [allStyles, selectedStyleIds]);
   const generateLyria = trpc.music.generateLyria.useMutation();
   const generateMusicGen = trpc.music.generateMusicGen.useMutation();
   const createSession = trpc.music.createSession.useMutation();
@@ -70,6 +80,7 @@ export default function Results() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const generationStartedRef = useRef(false);
+  const sessionIdRef = useRef<number | undefined>(undefined);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(() => Math.floor(Math.random() * LOADING_MESSAGES.length));
 
@@ -137,16 +148,19 @@ export default function Results() {
 
     const run = async () => {
       // Create session first
-      let sessionId: number | undefined;
-      try {
-        const result = await createSession.mutateAsync({
-          originalAudioUrl: audioUrl || undefined,
-          melodyDescription: melodyDescription || undefined,
-          inputMode,
-        });
-        sessionId = result.sessionId;
-      } catch (err) {
-        console.error("Failed to create session:", err);
+      let sessionId = sessionIdRef.current;
+      if (!sessionId) {
+        try {
+          const result = await createSession.mutateAsync({
+            originalAudioUrl: audioUrl || undefined,
+            melodyDescription: melodyDescription || undefined,
+            inputMode,
+          });
+          sessionId = result.sessionId;
+          sessionIdRef.current = sessionId;
+        } catch (err) {
+          console.error("Failed to create session:", err);
+        }
       }
 
       // Mark all as generating
@@ -222,6 +236,52 @@ export default function Results() {
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [styles, tracks.length]);
+
+  // Retry a single failed track
+  const retryTrack = useCallback(
+    async (trackToRetry: GeneratedTrack) => {
+      const style = styles?.find((s) => s.id === trackToRetry.styleId);
+      if (!style) return;
+
+      updateTrack(trackToRetry.key, { status: "generating", error: undefined });
+
+      try {
+        if (trackToRetry.variant === "faithful" && audioUrl) {
+          const result = await generateMusicGen.mutateAsync({
+            audioUrl,
+            styleId: style.id,
+            duration: 30,
+            sessionId: sessionIdRef.current,
+          });
+          updateTrack(trackToRetry.key, {
+            status: "done",
+            audioUrl: result.audioUrl,
+            trackName: result.trackName ?? "",
+            imageUrl: result.imageUrl ?? "",
+          });
+        } else if (trackToRetry.variant === "reimagined") {
+          const result = await generateLyria.mutateAsync({
+            melodyDescription: melodyDescription || undefined,
+            styleId: style.id,
+            sessionId: sessionIdRef.current,
+          });
+          updateTrack(trackToRetry.key, {
+            status: "done",
+            audioUrl: result.audioUrl,
+            caption: result.caption ?? "",
+            trackName: result.trackName ?? "",
+            imageUrl: result.imageUrl ?? "",
+          });
+        }
+      } catch (err: any) {
+        updateTrack(trackToRetry.key, {
+          status: "error",
+          error: err?.message ?? "Retry failed",
+        });
+      }
+    },
+    [styles, audioUrl, melodyDescription, generateMusicGen, generateLyria, updateTrack]
+  );
 
   // Audio playback with analyser
   const togglePlay = useCallback(
@@ -359,7 +419,7 @@ export default function Results() {
             <span className="gradient-cosmic-text">Your Music</span>
           </h1>
           <p className="text-sm text-muted-foreground text-center mb-2">
-            8 unique pieces across 4 styles
+            {tracks.length} unique pieces across {styles?.length ?? 0} styles
           </p>
 
           {/* Loading entertainment */}
@@ -484,6 +544,7 @@ export default function Results() {
                       onTogglePlay={() => togglePlay(fTrack)}
                       onDownloadMp3={() => handleDownloadMp3(fTrack)}
                       onDownloadMp4={() => handleDownloadMp4(fTrack)}
+                      onRetry={() => retryTrack(fTrack)}
                     />
                     <TrackCard
                       track={rTrack}
@@ -494,6 +555,7 @@ export default function Results() {
                       onTogglePlay={() => togglePlay(rTrack)}
                       onDownloadMp3={() => handleDownloadMp3(rTrack)}
                       onDownloadMp4={() => handleDownloadMp4(rTrack)}
+                      onRetry={() => retryTrack(rTrack)}
                     />
                   </div>
                 </motion.div>
@@ -518,6 +580,7 @@ function TrackCard({
   onTogglePlay,
   onDownloadMp3,
   onDownloadMp4,
+  onRetry,
 }: {
   track: GeneratedTrack;
   isPlaying: boolean;
@@ -527,6 +590,7 @@ function TrackCard({
   onTogglePlay: () => void;
   onDownloadMp3: () => void;
   onDownloadMp4: () => void;
+  onRetry?: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
@@ -624,6 +688,14 @@ function TrackCard({
 
   // Error state
   if (track.status === "error") {
+    // Friendly error message
+    const rawErr = track.error ?? "Generation failed";
+    const friendlyMsg = rawErr.toLowerCase().includes("fetch")
+      ? "Connection timed out. The AI model took too long to respond."
+      : rawErr.toLowerCase().includes("timeout")
+        ? "Generation timed out. Please try again."
+        : rawErr;
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -634,7 +706,18 @@ function TrackCard({
         <div className="relative flex items-center justify-center" style={{ height: 200 }}>
           <div className="text-center p-4">
             <AlertCircle className="w-8 h-8 text-destructive/60 mx-auto mb-2" />
-            <p className="text-xs text-destructive/80">{track.error ?? "Generation failed"}</p>
+            <p className="text-xs text-destructive/80 mb-2">{friendlyMsg}</p>
+            {onRetry && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRetry}
+                className="gap-1.5 text-xs h-7"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Retry
+              </Button>
+            )}
           </div>
         </div>
         <div className="p-3">

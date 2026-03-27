@@ -6,7 +6,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Square, Piano, Wand2, Trash2, Music, Play, Pause, ChevronRight, Vault } from "lucide-react";
+import { Mic, Square, Piano, Wand2, Trash2, Music, Play, Pause, ChevronRight, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 
@@ -93,9 +93,15 @@ function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
 // Style colors for vault track thumbnails
 const STYLE_COLORS: Record<string, string> = {
   "lofi": "#FF6B9D",
-  "cinematic": "#00D4FF",
+  "cinematic": "#00E5FF",
   "jazz": "#FFB800",
   "electronic": "#A78BFA",
+  "tiktok": "#FF3B5C",
+  "upbeat": "#22D3EE",
+  "rock": "#EF4444",
+  "rnb": "#F472B6",
+  "classical": "#D4A574",
+  "edm": "#10B981",
 };
 
 function getStyleColor(style: string): string {
@@ -138,10 +144,29 @@ export default function Home() {
   const [vaultPlayingUrl, setVaultPlayingUrl] = useState<string | null>(null);
   const vaultAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Style selection: max 3, defaults to lofi + electronic
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(["lofi", "electronic"]);
+
   const uploadAudio = trpc.music.uploadAudio.useMutation();
+
+  // Fetch all available styles from backend
+  const { data: allStyles } = trpc.music.getStyles.useQuery();
 
   // Fetch recent sessions for My Music Vault
   const { data: galleryData } = trpc.gallery.listSessions.useQuery({ limit: 6, offset: 0 });
+
+  const toggleStyle = useCallback((styleId: string) => {
+    setSelectedStyles((prev) => {
+      if (prev.includes(styleId)) {
+        // Don't allow deselecting if only 1 selected
+        if (prev.length <= 1) return prev;
+        return prev.filter((s) => s !== styleId);
+      }
+      // Max 3
+      if (prev.length >= 3) return prev;
+      return [...prev, styleId];
+    });
+  }, []);
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
@@ -325,8 +350,9 @@ export default function Home() {
         } pattern, played at a ${noteSeq.length <= 6 ? "slow" : "moderate"} tempo.`;
       }
 
+      const stylesParam = selectedStyles.join(",");
       navigate(
-        `/results?audio=${encodeURIComponent(audioUrl)}&melody=${encodeURIComponent(melodyDesc)}`
+        `/results?audio=${encodeURIComponent(audioUrl)}&melody=${encodeURIComponent(melodyDesc)}&styles=${encodeURIComponent(stylesParam)}`
       );
     } catch (err) {
       console.error("Upload failed:", err);
@@ -388,8 +414,8 @@ export default function Home() {
                 onClick={() => navigate("/gallery")}
                 className="gap-2 text-muted-foreground hover:text-foreground"
               >
-                <Vault className="w-4 h-4" />
-                My Music Vault
+                <Library className="w-4 h-4" />
+                My Music
               </Button>
             )}
           </div>
@@ -464,8 +490,8 @@ export default function Home() {
                   </>
                 )}
                 <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={hasRecording}
+                  onClick={isRecording ? stopRecording : hasRecording ? undefined : startRecording}
+                  disabled={hasRecording && !isRecording}
                   className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
                     isRecording
                       ? "bg-red-500/20 border-2 border-red-500 glow-magenta"
@@ -494,7 +520,10 @@ export default function Home() {
               {!hasRecording && !isRecording && (
                 <p className="text-muted-foreground text-sm">Tap to start recording your hum</p>
               )}
-              {hasRecording && (
+              {isRecording && (
+                <p className="text-red-400/80 text-sm animate-pulse">Recording... tap the button to stop</p>
+              )}
+              {hasRecording && !isRecording && (
                 <p className="text-green-400 text-sm">Recording captured! Ready to generate.</p>
               )}
             </motion.div>
@@ -598,6 +627,50 @@ export default function Home() {
           </motion.div>
         )}
 
+        {/* Style Selection */}
+        {hasRecording && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-lg"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-foreground">Choose styles</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedStyles.length}/3 selected
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {(allStyles ?? []).map((style) => {
+                const isSelected = selectedStyles.includes(style.id);
+                const isDisabled = !isSelected && selectedStyles.length >= 3;
+                return (
+                  <button
+                    key={style.id}
+                    onClick={() => toggleStyle(style.id)}
+                    disabled={isDisabled}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-pointer ${
+                      isSelected
+                        ? "border-transparent text-white shadow-md"
+                        : isDisabled
+                          ? "border-border/10 bg-white/3 text-muted-foreground/40 cursor-not-allowed"
+                          : "border-border/20 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                    }`}
+                    style={
+                      isSelected
+                        ? { background: `${style.color}cc`, borderColor: style.color }
+                        : {}
+                    }
+                  >
+                    <span className="mr-1">{style.emoji}</span>
+                    {style.name}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
         {/* Action buttons */}
         <div className="flex gap-3">
           {hasRecording && (
@@ -608,11 +681,11 @@ export default function Home() {
               </Button>
               <Button
                 onClick={handleGenerate}
-                disabled={isUploading}
+                disabled={isUploading || selectedStyles.length === 0}
                 className="gap-2 gradient-cosmic text-background font-semibold px-8 h-12 rounded-full border-0 hover:opacity-90 transition-all"
               >
                 <Wand2 className="w-5 h-5" />
-                {isUploading ? "Uploading..." : "Generate Music"}
+                {isUploading ? "Uploading..." : `Generate ${selectedStyles.length * 2} Tracks`}
               </Button>
             </>
           )}
@@ -628,7 +701,7 @@ export default function Home() {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Vault className="w-4 h-4 text-primary" />
+                  <Library className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                   <h2 className="font-display text-lg font-bold text-foreground">My Music Vault</h2>

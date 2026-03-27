@@ -50,3 +50,12 @@
 - [x] Remove V2 badge from header
 - [x] Generate 200 music fun facts for loading messages
 - [x] Wire fun facts into Results page loading rotation
+- [x] Fix: "Failed to fetch" error on Results page generation (added retry button + friendly error messages)
+- [x] Fix: Hum pause button broken, must record full 10 seconds
+- [x] Gallery: when filtered by style, show pieces directly instead of sessions
+- [x] My Music Vault: replace Vault icon with Library icon
+- [x] Add style selection UI: 10 genres, default Lo-fi + Electronic, max 3 selections
+- [x] Backend: expand STYLES to 10 genres (lofi, cinematic, jazz, electronic, tiktok, upbeat, rock, rnb, classical, edm)
+- [x] Backend: add gallery.listTracks route for individual track listing
+- [x] Results page: dynamic track count based on selected styles
+- [x] Update tests for 10 styles + listTracks route

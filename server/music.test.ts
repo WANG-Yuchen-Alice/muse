@@ -16,23 +16,25 @@ function createPublicContext(): TrpcContext {
 }
 
 describe("music.getStyles", () => {
-  it("returns 4 styles with id, name, and color", async () => {
+  it("returns 10 styles with id, name, color, and emoji", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
     const styles = await caller.music.getStyles();
 
-    expect(styles).toHaveLength(4);
+    expect(styles).toHaveLength(10);
     for (const style of styles) {
       expect(style).toHaveProperty("id");
       expect(style).toHaveProperty("name");
       expect(style).toHaveProperty("color");
+      expect(style).toHaveProperty("emoji");
       expect(typeof style.id).toBe("string");
       expect(typeof style.name).toBe("string");
       expect(style.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      expect(typeof style.emoji).toBe("string");
     }
   });
 
-  it("includes expected style IDs", async () => {
+  it("includes all expected style IDs", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
     const styles = await caller.music.getStyles();
@@ -42,6 +44,12 @@ describe("music.getStyles", () => {
     expect(ids).toContain("cinematic");
     expect(ids).toContain("jazz");
     expect(ids).toContain("electronic");
+    expect(ids).toContain("tiktok");
+    expect(ids).toContain("upbeat");
+    expect(ids).toContain("rock");
+    expect(ids).toContain("rnb");
+    expect(ids).toContain("classical");
+    expect(ids).toContain("edm");
   });
 });
 
@@ -119,5 +127,28 @@ describe("gallery.getSession", () => {
     await expect(
       caller.gallery.getSession({ sessionId: 999999 })
     ).rejects.toThrow("Session not found");
+  });
+});
+
+describe("gallery.listTracks", () => {
+  it("returns tracks array and total count", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.gallery.listTracks({ limit: 10, offset: 0 });
+
+    expect(result).toHaveProperty("tracks");
+    expect(result).toHaveProperty("total");
+    expect(Array.isArray(result.tracks)).toBe(true);
+    expect(typeof result.total).toBe("number");
+  });
+
+  it("accepts optional styleId filter", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.gallery.listTracks({ styleId: "lofi", limit: 10, offset: 0 });
+
+    expect(result).toHaveProperty("tracks");
+    expect(result).toHaveProperty("total");
+    expect(Array.isArray(result.tracks)).toBe(true);
   });
 });

@@ -1,8 +1,8 @@
 /**
  * Muse — Gallery Page
  * Beautiful gallery of all past generation sessions.
- * Shows original hum + generated pieces per session.
- * Filter by style category.
+ * When "All Styles" is selected, shows sessions (grouped).
+ * When a specific style is selected, shows individual tracks directly.
  */
 import { useState, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -22,7 +22,6 @@ import {
   Fingerprint,
   ChevronDown,
   ChevronUp,
-  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -35,15 +34,35 @@ const STYLE_META: Record<string, { name: string; color: string; emoji: string }>
   cinematic: { name: "Cinematic Epic", color: "#00E5FF", emoji: "🎬" },
   jazz: { name: "Smooth Jazz", color: "#FFB800", emoji: "🎷" },
   electronic: { name: "Ambient Electronic", color: "#A78BFA", emoji: "🌌" },
+  tiktok: { name: "TikTok Viral", color: "#FF3B5C", emoji: "🔥" },
+  upbeat: { name: "Upbeat Pop", color: "#22D3EE", emoji: "☀️" },
+  rock: { name: "Rock", color: "#EF4444", emoji: "🎸" },
+  rnb: { name: "R&B Soul", color: "#F472B6", emoji: "💜" },
+  classical: { name: "Classical Piano", color: "#D4A574", emoji: "🎹" },
+  edm: { name: "EDM / Dance", color: "#10B981", emoji: "🪩" },
 };
 
-const ALL_STYLES = ["all", "lofi", "cinematic", "jazz", "electronic"] as const;
+const ALL_STYLES = ["all", "lofi", "cinematic", "jazz", "electronic", "tiktok", "upbeat", "rock", "rnb", "classical", "edm"] as const;
 
 export default function Gallery() {
   const [, navigate] = useLocation();
-  const { data, isLoading } = trpc.gallery.listSessions.useQuery({ limit: 50, offset: 0 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [styleFilter, setStyleFilter] = useState<string>("all");
+
+  // Fetch sessions for "All" view
+  const { data: sessionsData, isLoading: sessionsLoading } = trpc.gallery.listSessions.useQuery(
+    { limit: 50, offset: 0 },
+    { enabled: styleFilter === "all" }
+  );
+
+  // Fetch individual tracks for filtered view
+  const { data: tracksData, isLoading: tracksLoading } = trpc.gallery.listTracks.useQuery(
+    { styleId: styleFilter, limit: 100, offset: 0 },
+    { enabled: styleFilter !== "all" }
+  );
+
+  const isLoading = styleFilter === "all" ? sessionsLoading : tracksLoading;
+  const totalCount = styleFilter === "all" ? (sessionsData?.total ?? 0) : (tracksData?.total ?? 0);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -81,7 +100,7 @@ export default function Gallery() {
             <span className="gradient-cosmic-text">Your Creations</span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            {data?.total ?? 0} session{(data?.total ?? 0) !== 1 ? "s" : ""} created
+            {totalCount} {styleFilter === "all" ? "session" : "track"}{totalCount !== 1 ? "s" : ""}
           </p>
         </div>
 
@@ -126,23 +145,26 @@ export default function Gallery() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Loading your creations...</p>
           </div>
-        ) : !data || data.sessions.length === 0 ? (
+        ) : totalCount === 0 ? (
           <div className="text-center py-20">
             <Music2 className="w-16 h-16 mx-auto text-muted-foreground/20 mb-4" />
             <h2 className="font-display text-lg font-semibold text-foreground mb-2">
-              No creations yet
+              {styleFilter === "all" ? "No creations yet" : `No ${STYLE_META[styleFilter]?.name ?? ""} tracks yet`}
             </h2>
             <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-              Hum a melody or play the piano to create your first piece. Each session generates 8 unique tracks across 4 styles.
+              Hum a melody or play the piano to create your first piece. Each session generates unique tracks across multiple styles.
             </p>
             <Button onClick={() => navigate("/")} className="gap-2">
               <Music2 className="w-4 h-4" />
               Start Creating
             </Button>
           </div>
-        ) : (
+        ) : styleFilter === "all" ? (
+          /* ============================================================ */
+          /* ALL STYLES VIEW — Show sessions (grouped) */
+          /* ============================================================ */
           <div className="flex flex-col gap-6">
-            {data.sessions.map((session, i) => (
+            {(sessionsData?.sessions ?? []).map((session, i) => (
               <SessionCard
                 key={session.id}
                 session={session}
@@ -151,8 +173,34 @@ export default function Gallery() {
                 onToggle={() =>
                   setExpandedId(expandedId === session.id ? null : session.id)
                 }
-                styleFilter={styleFilter}
               />
+            ))}
+          </div>
+        ) : (
+          /* ============================================================ */
+          /* FILTERED VIEW — Show individual tracks directly */
+          /* ============================================================ */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {(tracksData?.tracks ?? []).map((track, i) => (
+              <motion.div
+                key={track.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+              >
+                <GalleryTrackCard
+                  track={track}
+                  variantIcon={
+                    track.variant === "faithful" ? (
+                      <Fingerprint className="w-3 h-3 text-cyan-400" />
+                    ) : (
+                      <Sparkles className="w-3 h-3 text-purple-400" />
+                    )
+                  }
+                  variantLabel={track.variant === "faithful" ? "Your Melody" : "Reimagined"}
+                  color={STYLE_META[track.styleId]?.color ?? "#888"}
+                />
+              </motion.div>
             ))}
           </div>
         )}
@@ -169,7 +217,6 @@ function SessionCard({
   index,
   isExpanded,
   onToggle,
-  styleFilter,
 }: {
   session: {
     id: number;
@@ -181,7 +228,6 @@ function SessionCard({
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
-  styleFilter: string;
 }) {
   const { data: details, isLoading } = trpc.gallery.getSession.useQuery(
     { sessionId: session.id },
@@ -197,22 +243,17 @@ function SessionCard({
     minute: "2-digit",
   });
 
-  // Filter tracks by style
-  const filteredTracks = useMemo(() => {
-    if (!details?.tracks) return [];
-    if (styleFilter === "all") return details.tracks;
-    return details.tracks.filter((t) => t.styleId === styleFilter);
-  }, [details?.tracks, styleFilter]);
+  const allTracks = details?.tracks ?? [];
 
   // Group tracks by style for display
   const groupedByStyle = useMemo(() => {
-    const groups: Record<string, typeof filteredTracks> = {};
-    for (const t of filteredTracks) {
+    const groups: Record<string, typeof allTracks> = {};
+    for (const t of allTracks) {
       if (!groups[t.styleId]) groups[t.styleId] = [];
       groups[t.styleId].push(t);
     }
     return groups;
-  }, [filteredTracks]);
+  }, [allTracks]);
 
   return (
     <motion.div
@@ -286,9 +327,9 @@ function SessionCard({
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Loading tracks...</span>
                 </div>
-              ) : filteredTracks.length === 0 ? (
+              ) : allTracks.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  No tracks found{styleFilter !== "all" ? ` for ${STYLE_META[styleFilter]?.name}` : ""}.
+                  No tracks found for this session.
                 </p>
               ) : (
                 <>
