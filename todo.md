@@ -44,3 +44,5 @@
 - [x] Gallery page: better visual design with track previews
 - [x] Gallery page: category/style filter (lo-fi, cinematic, jazz, electronic)
 - [x] Gallery page: show original hum + generated pieces per session
+- [ ] Fix: JSON parsing error "Unexpected token '<'" on Results page generation
+- [x] Fix: Pink placeholder blocks during loading (now uses style-specific canvas animations)

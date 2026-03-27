@@ -21,7 +21,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import StyleAnimation from "@/components/StyleAnimation";
 import { trpc } from "@/lib/trpc";
 
 const LOGO =
@@ -595,7 +595,7 @@ function TrackCard({
     return () => cancelAnimationFrame(animRef.current);
   }, [isPlaying, analyser, track.color, track.status]);
 
-  // Skeleton / generating state
+  // Skeleton / generating state — use style-specific canvas animation
   if (track.status === "pending" || track.status === "generating") {
     return (
       <motion.div
@@ -605,7 +605,13 @@ function TrackCard({
         style={{ background: "oklch(0.12 0.02 280)" }}
       >
         <div className="relative" style={{ height: 200 }}>
-          <Skeleton className="w-full h-full rounded-none" />
+          <StyleAnimation
+            isPlaying={true}
+            color={track.color}
+            styleId={track.styleId}
+            width={400}
+            height={200}
+          />
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
             <motion.div
               animate={{ rotate: 360 }}
@@ -618,9 +624,9 @@ function TrackCard({
             </span>
           </div>
         </div>
-        <div className="p-3 space-y-2">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
+        <div className="p-3">
+          <div className="h-4 w-3/4 rounded bg-white/5 animate-pulse" />
+          <div className="h-3 w-1/2 rounded bg-white/5 animate-pulse mt-2" />
         </div>
       </motion.div>
     );
