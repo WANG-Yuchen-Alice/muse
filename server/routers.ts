@@ -275,17 +275,21 @@ async function createMusicVideo(
     await writeFile(audioPath, Buffer.from(audioResp.data));
 
     const filterParts: string[] = [];
+    const hasImage = !!imageResp;
 
-    if (imageResp) {
+    // Audio input is always index 0
+    // When image exists: image is index 1 (via -loop 1 -i imagePath)
+    // When no image: color source is index 1 (via -f lavfi -i color=...)
+    if (hasImage) {
       await writeFile(bgImagePath, Buffer.from(imageResp.data));
       // Scale background image to 1080x1920 (9:16) with crop
       filterParts.push(
         `[1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`
       );
     } else {
-      // Generate a gradient background
+      // Color source is input 1 (added as -f lavfi -i in ffmpegArgs)
       filterParts.push(
-        `color=c=black:s=1080x1920:d=60[bg]`
+        `[1:v]scale=1080:1920,setsar=1[bg]`
       );
     }
 
@@ -314,10 +318,17 @@ async function createMusicVideo(
       `[withname]drawtext=text='Created with Muse':fontsize=28:fontcolor=white@0.5:x=(w-text_w)/2:y=1820:font=Arial:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf[final]`
     );
 
+    // Build input args: audio first, then image or color source
+    const inputArgs: string[] = ["-y", "-i", audioPath];
+    if (hasImage) {
+      inputArgs.push("-loop", "1", "-i", bgImagePath);
+    } else {
+      // Use lavfi color source as a proper input
+      inputArgs.push("-f", "lavfi", "-i", `color=c=black:s=1080x1920:d=60`);
+    }
+
     const ffmpegArgs = [
-      "-y",
-      "-i", audioPath,
-      ...(imageResp ? ["-loop", "1", "-i", bgImagePath] : []),
+      ...inputArgs,
       "-filter_complex", filterParts.join(";"),
       "-map", "[final]",
       "-map", "0:a",
@@ -359,11 +370,12 @@ async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<B
 
     if (imageResp) {
       await writeFile(imagePath, Buffer.from(imageResp.data));
-      // Create MP4 with static image + audio
+      // Create MP4 with static image + audio (9:16 vertical)
       await execFileAsync("ffmpeg", [
         "-y",
         "-loop", "1", "-i", imagePath,
         "-i", audioPath,
+        "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
         "-c:v", "libx264", "-tune", "stillimage",
         "-c:a", "aac", "-b:a", "192k",
         "-pix_fmt", "yuv420p",
@@ -372,10 +384,10 @@ async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<B
         outputPath,
       ], { timeout: 60000 });
     } else {
-      // No image — create a simple black video with audio
+      // No image — create a simple black video with audio (9:16 vertical)
       await execFileAsync("ffmpeg", [
         "-y",
-        "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=30",
+        "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=30",
         "-i", audioPath,
         "-c:v", "libx264",
         "-c:a", "aac", "-b:a", "192k",

@@ -372,6 +372,7 @@ export default function Results() {
 
   const handleShare = useCallback(async () => {
     if (!generatedVideoUrl) return;
+    let shared = false;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -379,9 +380,24 @@ export default function Results() {
           text: `Check out this AI-generated music video: ${videoStudioTrack?.trackName}`,
           url: generatedVideoUrl,
         });
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(generatedVideoUrl);
+        shared = true;
+      } catch {
+        // navigator.share failed (e.g. in iframe) — fall through to clipboard
+      }
+    }
+    if (!shared) {
+      try {
+        await navigator.clipboard.writeText(generatedVideoUrl);
+      } catch {
+        const textArea = document.createElement("textarea");
+        textArea.value = generatedVideoUrl;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     }

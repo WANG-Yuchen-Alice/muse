@@ -69,3 +69,6 @@
 - [x] Merge feature/video-gen branch from GitHub (Video Generation + Social Share)
 - [x] DB migration: add videoUrl column to tracks table
 - [x] Verify new features: Video Studio, Share page, Community gallery — server running, 15 tests pass, 0 TS errors
+- [x] Bug: Video not vertical (9:16) format — fixed both createMusicVideo and createMp4WithImage to output 1080x1920
+- [x] Bug: No video actually generated — fixed FFmpeg filter_complex: no-image branch now uses proper -f lavfi -i input source
+- [x] Bug: Share button not working — added clipboard fallback with visual feedback when navigator.share fails (iframe/non-HTTPS)

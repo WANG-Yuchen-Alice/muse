@@ -67,6 +67,7 @@ export default function Share() {
 
   const handleShare = useCallback(async () => {
     const shareUrl = window.location.href;
+    let shared = false;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -74,9 +75,25 @@ export default function Share() {
           text: `Check out this AI-generated music: ${track?.trackName}`,
           url: shareUrl,
         });
-      } catch {}
-    } else {
-      await navigator.clipboard.writeText(shareUrl);
+        shared = true;
+      } catch {
+        // navigator.share failed (e.g. in iframe, user cancelled) — fall through to clipboard
+      }
+    }
+    if (!shared) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+      } catch {
+        // Clipboard API not available — try execCommand fallback
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     }
@@ -220,8 +237,17 @@ export default function Share() {
               onClick={handleShare}
               className="flex-1 gap-2 h-11 gradient-cosmic text-background border-0 hover:opacity-90"
             >
-              <Share2 className="w-4 h-4" />
-              Share
+              {linkCopied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Link Copied!
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </>
+              )}
             </Button>
           </div>
 
