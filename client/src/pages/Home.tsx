@@ -144,8 +144,8 @@ export default function Home() {
   const [vaultPlayingUrl, setVaultPlayingUrl] = useState<string | null>(null);
   const vaultAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Style selection: max 3, defaults to lofi + electronic
-  const [selectedStyles, setSelectedStyles] = useState<string[]>(["lofi", "electronic"]);
+  // Style selection: exactly 1 style
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(["lofi"]);
 
   const uploadAudio = trpc.music.uploadAudio.useMutation();
 
@@ -156,16 +156,8 @@ export default function Home() {
   const { data: galleryData } = trpc.gallery.listSessions.useQuery({ limit: 6, offset: 0 });
 
   const toggleStyle = useCallback((styleId: string) => {
-    setSelectedStyles((prev) => {
-      if (prev.includes(styleId)) {
-        // Don't allow deselecting if only 1 selected
-        if (prev.length <= 1) return prev;
-        return prev.filter((s) => s !== styleId);
-      }
-      // Max 3
-      if (prev.length >= 3) return prev;
-      return [...prev, styleId];
-    });
+    // Single-select: always switch to the clicked style
+    setSelectedStyles([styleId]);
   }, []);
 
   const getAudioCtx = useCallback(() => {
@@ -635,26 +627,19 @@ export default function Home() {
             className="w-full max-w-lg"
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-foreground">Choose styles</p>
-              <p className="text-xs text-muted-foreground">
-                {selectedStyles.length}/3 selected
-              </p>
+              <p className="text-sm font-medium text-foreground">Choose a style</p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
               {(allStyles ?? []).map((style) => {
                 const isSelected = selectedStyles.includes(style.id);
-                const isDisabled = !isSelected && selectedStyles.length >= 3;
                 return (
                   <button
                     key={style.id}
                     onClick={() => toggleStyle(style.id)}
-                    disabled={isDisabled}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-pointer ${
                       isSelected
                         ? "border-transparent text-white shadow-md"
-                        : isDisabled
-                          ? "border-border/10 bg-white/3 text-muted-foreground/40 cursor-not-allowed"
-                          : "border-border/20 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                        : "border-border/20 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
                     }`}
                     style={
                       isSelected
@@ -685,7 +670,7 @@ export default function Home() {
                 className="gap-2 gradient-cosmic text-background font-semibold px-8 h-12 rounded-full border-0 hover:opacity-90 transition-all"
               >
                 <Wand2 className="w-5 h-5" />
-                {isUploading ? "Uploading..." : `Generate ${selectedStyles.length * 2} Tracks`}
+                {isUploading ? "Uploading..." : "Generate 2 Tracks"}
               </Button>
             </>
           )}

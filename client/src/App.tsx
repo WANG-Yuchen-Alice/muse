@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Results from "./pages/Results";
 import Gallery from "./pages/Gallery";
+import Share from "./pages/Share";
 
 function Router() {
   return (
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/results" component={Results} />
       <Route path="/gallery" component={Gallery} />
+      <Route path="/share/:trackId" component={Share} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

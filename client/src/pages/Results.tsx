@@ -16,14 +16,24 @@ import {
   Fingerprint,
   Sparkles,
   Music,
-  Music2,
-  Video,
+  Film,
+  Share2,
   AlertCircle,
+  X,
+  Download,
+  Link2,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StyleAnimation from "@/components/StyleAnimation";
 import { trpc } from "@/lib/trpc";
 import { MUSIC_FACTS } from "@shared/musicFacts";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
@@ -70,8 +80,7 @@ export default function Results() {
   const generateLyria = trpc.music.generateLyria.useMutation();
   const generateMusicGen = trpc.music.generateMusicGen.useMutation();
   const createSession = trpc.music.createSession.useMutation();
-  const downloadMp3Mut = trpc.music.downloadMp3.useMutation();
-  const downloadMp4Mut = trpc.music.downloadMp4.useMutation();
+  const generateVideoMut = trpc.music.generateVideo.useMutation();
 
   const [tracks, setTracks] = useState<GeneratedTrack[]>([]);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
@@ -81,7 +90,10 @@ export default function Results() {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const generationStartedRef = useRef(false);
   const sessionIdRef = useRef<number | undefined>(undefined);
-  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const [videoStudioTrack, setVideoStudioTrack] = useState<GeneratedTrack | null>(null);
+  const [videoGenerating, setVideoGenerating] = useState(false);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(() => Math.floor(Math.random() * LOADING_MESSAGES.length));
 
   // Rotate loading messages (every 5s for readability with fun facts)
@@ -323,52 +335,64 @@ export default function Results() {
     [playingKey]
   );
 
-  const handleDownloadMp3 = useCallback(
-    async (track: GeneratedTrack) => {
-      if (downloadingKey) return;
-      setDownloadingKey(`mp3-${track.key}`);
-      try {
-        const result = await downloadMp3Mut.mutateAsync({
-          audioUrl: track.audioUrl,
-          trackName: track.trackName || track.styleName,
-        });
-        const a = document.createElement("a");
-        a.href = result.url;
-        a.download = result.filename;
-        a.target = "_blank";
-        a.click();
-      } catch (err) {
-        console.error("MP3 download failed:", err);
-      } finally {
-        setDownloadingKey(null);
-      }
-    },
-    [downloadMp3Mut, downloadingKey]
-  );
+  const openVideoStudio = useCallback((track: GeneratedTrack) => {
+    setVideoStudioTrack(track);
+    setGeneratedVideoUrl(null);
+    setVideoGenerating(false);
+    setLinkCopied(false);
+  }, []);
 
-  const handleDownloadMp4 = useCallback(
-    async (track: GeneratedTrack) => {
-      if (downloadingKey) return;
-      setDownloadingKey(`mp4-${track.key}`);
+  const handleGenerateVideo = useCallback(async () => {
+    if (!videoStudioTrack || videoGenerating) return;
+    setVideoGenerating(true);
+    try {
+      const result = await generateVideoMut.mutateAsync({
+        audioUrl: videoStudioTrack.audioUrl,
+        imageUrl: videoStudioTrack.imageUrl || undefined,
+        trackName: videoStudioTrack.trackName || videoStudioTrack.styleName,
+        styleId: videoStudioTrack.styleId,
+        color: videoStudioTrack.color,
+      });
+      setGeneratedVideoUrl(result.url);
+    } catch (err) {
+      console.error("Video generation failed:", err);
+    } finally {
+      setVideoGenerating(false);
+    }
+  }, [videoStudioTrack, videoGenerating, generateVideoMut]);
+
+  const handleDownloadVideo = useCallback(() => {
+    if (!generatedVideoUrl || !videoStudioTrack) return;
+    const a = document.createElement("a");
+    a.href = generatedVideoUrl;
+    a.download = `${(videoStudioTrack.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4`;
+    a.target = "_blank";
+    a.click();
+  }, [generatedVideoUrl, videoStudioTrack]);
+
+  const handleShare = useCallback(async () => {
+    if (!generatedVideoUrl) return;
+    if (navigator.share) {
       try {
-        const result = await downloadMp4Mut.mutateAsync({
-          audioUrl: track.audioUrl,
-          imageUrl: track.imageUrl || undefined,
-          trackName: track.trackName || track.styleName,
+        await navigator.share({
+          title: videoStudioTrack?.trackName || "Muse Music Video",
+          text: `Check out this AI-generated music video: ${videoStudioTrack?.trackName}`,
+          url: generatedVideoUrl,
         });
-        const a = document.createElement("a");
-        a.href = result.url;
-        a.download = result.filename;
-        a.target = "_blank";
-        a.click();
-      } catch (err) {
-        console.error("MP4 download failed:", err);
-      } finally {
-        setDownloadingKey(null);
-      }
-    },
-    [downloadMp4Mut, downloadingKey]
-  );
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(generatedVideoUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }, [generatedVideoUrl, videoStudioTrack]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!generatedVideoUrl) return;
+    await navigator.clipboard.writeText(generatedVideoUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }, [generatedVideoUrl]);
 
   const doneCount = tracks.filter((t) => t.status === "done" || t.status === "error").length;
   const totalCount = tracks.length;
@@ -398,7 +422,7 @@ export default function Results() {
               onClick={() => navigate("/gallery")}
               className="gap-2 text-muted-foreground hover:text-foreground"
             >
-              Gallery
+              Community
             </Button>
             <Button
               variant="outline"
@@ -539,23 +563,17 @@ export default function Results() {
                     <TrackCard
                       track={fTrack}
                       isPlaying={playingKey === fTrack.key}
-                      isDownloading={downloadingKey?.includes(fTrack.key) ?? false}
-                      downloadingKey={downloadingKey}
                       analyser={playingKey === fTrack.key ? analyserRef.current : null}
                       onTogglePlay={() => togglePlay(fTrack)}
-                      onDownloadMp3={() => handleDownloadMp3(fTrack)}
-                      onDownloadMp4={() => handleDownloadMp4(fTrack)}
+                      onCreateVideo={() => openVideoStudio(fTrack)}
                       onRetry={() => retryTrack(fTrack)}
                     />
                     <TrackCard
                       track={rTrack}
                       isPlaying={playingKey === rTrack.key}
-                      isDownloading={downloadingKey?.includes(rTrack.key) ?? false}
-                      downloadingKey={downloadingKey}
                       analyser={playingKey === rTrack.key ? analyserRef.current : null}
                       onTogglePlay={() => togglePlay(rTrack)}
-                      onDownloadMp3={() => handleDownloadMp3(rTrack)}
-                      onDownloadMp4={() => handleDownloadMp4(rTrack)}
+                      onCreateVideo={() => openVideoStudio(rTrack)}
                       onRetry={() => retryTrack(rTrack)}
                     />
                   </div>
@@ -565,6 +583,162 @@ export default function Results() {
           </div>
         </motion.div>
       </main>
+
+      {/* ============================================================ */}
+      {/* Video Studio Dialog */}
+      {/* ============================================================ */}
+      <Dialog
+        open={!!videoStudioTrack}
+        onOpenChange={(open) => {
+          if (!open) {
+            setVideoStudioTrack(null);
+            setGeneratedVideoUrl(null);
+            setVideoGenerating(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Film className="w-5 h-5 text-primary" />
+              {generatedVideoUrl ? "Your Music Video" : "Create Music Video"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {videoStudioTrack && !generatedVideoUrl && (
+            <div className="flex flex-col gap-4">
+              {/* Preview card */}
+              <div className="rounded-lg overflow-hidden border border-border/20">
+                <div className="relative" style={{ height: 180 }}>
+                  {videoStudioTrack.imageUrl ? (
+                    <img
+                      src={videoStudioTrack.imageUrl}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background: `linear-gradient(135deg, ${videoStudioTrack.color}20, oklch(0.1 0.02 280))`,
+                      }}
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                  <div className="absolute bottom-3 left-3 right-3">
+                    <p className="font-display text-sm font-semibold text-white truncate">
+                      {videoStudioTrack.trackName}
+                    </p>
+                    <p className="text-xs text-white/60 mt-0.5">{videoStudioTrack.styleName}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Format info */}
+              <div className="rounded-lg bg-white/5 border border-border/10 p-3">
+                <p className="text-xs font-medium text-foreground mb-2">Video Format</p>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-muted-foreground">Aspect</p>
+                    <p className="text-xs font-mono text-foreground">9:16</p>
+                  </div>
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-muted-foreground">Resolution</p>
+                    <p className="text-xs font-mono text-foreground">1080x1920</p>
+                  </div>
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-muted-foreground">For</p>
+                    <p className="text-xs font-mono text-foreground">TikTok / Reels</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Generate button */}
+              <Button
+                onClick={handleGenerateVideo}
+                disabled={videoGenerating}
+                className="w-full gap-2 gradient-cosmic text-background font-semibold h-11 rounded-full border-0 hover:opacity-90 transition-all"
+              >
+                {videoGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Rendering Video...
+                  </>
+                ) : (
+                  <>
+                    <Film className="w-4 h-4" />
+                    Generate Music Video
+                  </>
+                )}
+              </Button>
+
+              <p className="text-[10px] text-muted-foreground text-center">
+                Audio-reactive visualization with dynamic spectrum overlay
+              </p>
+            </div>
+          )}
+
+          {videoStudioTrack && generatedVideoUrl && (
+            <div className="flex flex-col gap-4">
+              {/* Video preview */}
+              <div className="rounded-lg overflow-hidden border border-border/20 bg-black">
+                <video
+                  src={generatedVideoUrl}
+                  controls
+                  autoPlay
+                  loop
+                  playsInline
+                  className="w-full"
+                  style={{ maxHeight: 400 }}
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleDownloadVideo}
+                  className="flex-1 gap-2 h-10"
+                  variant="outline"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </Button>
+                <Button
+                  onClick={handleShare}
+                  className="flex-1 gap-2 h-10 gradient-cosmic text-background border-0 hover:opacity-90"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </Button>
+              </div>
+
+              {/* Copy link */}
+              <Button
+                onClick={handleCopyLink}
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {linkCopied ? (
+                  <>
+                    <Check className="w-3 h-3 text-green-400" />
+                    Link copied!
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-3 h-3" />
+                    Copy video link
+                  </>
+                )}
+              </Button>
+
+              <p className="text-[10px] text-muted-foreground text-center">
+                Created with Muse — AI Music Generator
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -575,22 +749,16 @@ export default function Results() {
 function TrackCard({
   track,
   isPlaying,
-  isDownloading,
-  downloadingKey,
   analyser,
   onTogglePlay,
-  onDownloadMp3,
-  onDownloadMp4,
+  onCreateVideo,
   onRetry,
 }: {
   track: GeneratedTrack;
   isPlaying: boolean;
-  isDownloading: boolean;
-  downloadingKey: string | null;
   analyser: AnalyserNode | null;
   onTogglePlay: () => void;
-  onDownloadMp3: () => void;
-  onDownloadMp4: () => void;
+  onCreateVideo: () => void;
   onRetry?: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -855,40 +1023,18 @@ function TrackCard({
         )}
       </div>
 
-      {/* Info + downloads */}
+      {/* Info + Create Video */}
       <div className="p-3">
         <p className="text-[11px] text-muted-foreground mb-2">{track.variantLabel}</p>
 
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground flex-1"
-            onClick={onDownloadMp3}
-            disabled={isDownloading}
-          >
-            {downloadingKey === `mp3-${track.key}` ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Music2 className="w-3 h-3" />
-            )}
-            MP3
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground flex-1"
-            onClick={onDownloadMp4}
-            disabled={isDownloading}
-          >
-            {downloadingKey === `mp4-${track.key}` ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Video className="w-3 h-3" />
-            )}
-            MP4
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          className="w-full h-8 text-xs gap-1.5 gradient-cosmic text-background font-semibold border-0 hover:opacity-90 rounded-full"
+          onClick={onCreateVideo}
+        >
+          <Film className="w-3.5 h-3.5" />
+          Create Music Video
+        </Button>
       </div>
     </motion.div>
   );

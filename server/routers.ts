@@ -234,6 +234,115 @@ async function convertToMp3(audioUrl: string): Promise<Buffer> {
   }
 }
 
+// ============================================================
+// Audio-reactive music video — 9:16 vertical, FFmpeg
+// ============================================================
+async function createMusicVideo(
+  audioUrl: string,
+  imageUrl: string,
+  trackName: string,
+  styleId: string,
+  color: string
+): Promise<Buffer> {
+  const [audioResp, imageResp] = await Promise.all([
+    axios.get(audioUrl, { responseType: "arraybuffer" }),
+    imageUrl ? axios.get(imageUrl, { responseType: "arraybuffer" }) : null,
+  ]);
+
+  const id = nanoid();
+  const audioPath = path.join(tmpdir(), `muse-va-${id}.tmp`);
+  const bgImagePath = path.join(tmpdir(), `muse-vbg-${id}.png`);
+  const outputPath = path.join(tmpdir(), `muse-mv-${id}.mp4`);
+
+  // Parse hex color to RGB for FFmpeg
+  const hexToRgb = (hex: string) => {
+    const h = hex.replace("#", "");
+    return {
+      r: parseInt(h.substring(0, 2), 16),
+      g: parseInt(h.substring(2, 4), 16),
+      b: parseInt(h.substring(4, 6), 16),
+    };
+  };
+  const rgb = hexToRgb(color || "#A78BFA");
+
+  // Sanitize track name for FFmpeg drawtext (escape special chars)
+  const safeTrackName = (trackName || "Untitled")
+    .replace(/'/g, "'\\\''")
+    .replace(/:/g, "\\:")
+    .replace(/%/g, "%%");
+
+  try {
+    await writeFile(audioPath, Buffer.from(audioResp.data));
+
+    const filterParts: string[] = [];
+
+    if (imageResp) {
+      await writeFile(bgImagePath, Buffer.from(imageResp.data));
+      // Scale background image to 1080x1920 (9:16) with crop
+      filterParts.push(
+        `[1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`
+      );
+    } else {
+      // Generate a gradient background
+      filterParts.push(
+        `color=c=black:s=1080x1920:d=60[bg]`
+      );
+    }
+
+    // Audio visualization: showwaves with custom colors, positioned at bottom
+    filterParts.push(
+      `[0:a]showwaves=s=1080x300:mode=cline:rate=30:colors=${color}@0.8|${color}@0.4:scale=sqrt[waves]`
+    );
+
+    // Overlay waves on background at the bottom area
+    filterParts.push(
+      `[bg][waves]overlay=0:1520:shortest=1[withwaves]`
+    );
+
+    // Add a semi-transparent gradient bar at the bottom for text readability
+    filterParts.push(
+      `[withwaves]drawbox=x=0:y=1680:w=1080:h=240:color=black@0.5:t=fill[withbar]`
+    );
+
+    // Add track name text
+    filterParts.push(
+      `[withbar]drawtext=text='${safeTrackName}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=1740:font=Arial:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf[withname]`
+    );
+
+    // Add "Created with Muse" branding
+    filterParts.push(
+      `[withname]drawtext=text='Created with Muse':fontsize=28:fontcolor=white@0.5:x=(w-text_w)/2:y=1820:font=Arial:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf[final]`
+    );
+
+    const ffmpegArgs = [
+      "-y",
+      "-i", audioPath,
+      ...(imageResp ? ["-loop", "1", "-i", bgImagePath] : []),
+      "-filter_complex", filterParts.join(";"),
+      "-map", "[final]",
+      "-map", "0:a",
+      "-c:v", "libx264",
+      "-preset", "fast",
+      "-crf", "23",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      "-pix_fmt", "yuv420p",
+      "-shortest",
+      "-movflags", "+faststart",
+      "-t", "30",
+      outputPath,
+    ];
+
+    await execFileAsync("ffmpeg", ffmpegArgs, { timeout: 120000 });
+    const mp4Buffer = await readFile(outputPath);
+    return mp4Buffer;
+  } finally {
+    await unlink(audioPath).catch(() => {});
+    await unlink(bgImagePath).catch(() => {});
+    await unlink(outputPath).catch(() => {});
+  }
+}
+
 async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<Buffer> {
   const [audioResp, imageResp] = await Promise.all([
     axios.get(audioUrl, { responseType: "arraybuffer" }),
@@ -578,6 +687,49 @@ export const appRouter = router({
         return { url, filename: `${(input.trackName ?? "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4` };
       }),
 
+    /** Generate a 9:16 music video with audio-reactive visualization */
+    generateVideo: publicProcedure
+      .input(z.object({
+        audioUrl: z.string(),
+        imageUrl: z.string().optional(),
+        trackName: z.string().optional(),
+        styleId: z.string(),
+        color: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const style = STYLES.find((s) => s.id === input.styleId);
+        const color = input.color || style?.color || "#A78BFA";
+        const trackName = input.trackName || "Untitled";
+
+        const mp4Buffer = await createMusicVideo(
+          input.audioUrl,
+          input.imageUrl ?? "",
+          trackName,
+          input.styleId,
+          color
+        );
+
+        const key = `videos/${nanoid()}.mp4`;
+        const { url } = await storagePut(key, mp4Buffer, "video/mp4");
+
+        // Update track videoUrl in DB if we can find the track
+        try {
+          const db = await getDb();
+          if (db && input.audioUrl) {
+            await db.update(tracks)
+              .set({ videoUrl: url })
+              .where(eq(tracks.audioUrl, input.audioUrl));
+          }
+        } catch (err) {
+          console.error("Failed to update track videoUrl:", err);
+        }
+
+        return {
+          url,
+          filename: `${trackName.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4`,
+        };
+      }),
+
     /** Pre-generate style images (can be called to seed the library) */
     generateStyleImages: publicProcedure
       .input(z.object({ styleId: z.string(), count: z.number().min(1).max(5).default(3) }))
@@ -665,6 +817,27 @@ export const appRouter = router({
         return {
           session: sessionResult[0],
           tracks: trackList,
+        };
+      }),
+
+    /** Get a single track by ID (for share page) */
+    getTrack: publicProcedure
+      .input(z.object({ trackId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const result = await db.select().from(tracks).where(eq(tracks.id, input.trackId)).limit(1);
+        if (result.length === 0) throw new Error("Track not found");
+
+        const track = result[0];
+        const style = STYLES.find((s) => s.id === track.styleId);
+
+        return {
+          ...track,
+          styleName: style?.name ?? track.styleId,
+          color: style?.color ?? "#A78BFA",
+          emoji: style?.emoji ?? "",
         };
       }),
   }),

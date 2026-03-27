@@ -59,6 +59,8 @@ export const tracks = mysqlTable("tracks", {
   caption: text("caption"),
   /** Duration in seconds */
   duration: int("duration"),
+  /** URL to the generated music video (9:16 vertical) */
+  videoUrl: text("videoUrl"),
   /** Generation status */
   status: varchar("status", { length: 16 }).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -12,7 +12,8 @@ import {
   Play,
   Pause,
   Music2,
-  Video,
+  Film,
+  Share2,
   Loader2,
   Calendar,
   Mic,
@@ -79,7 +80,7 @@ export default function Gallery() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <img src={LOGO} alt="Muse" className="w-8 h-8" />
-            <span className="font-display text-xl font-bold text-foreground">Gallery</span>
+            <span className="font-display text-xl font-bold text-foreground">Community</span>
           </div>
           <Button
             variant="outline"
@@ -97,10 +98,10 @@ export default function Gallery() {
         {/* Page title */}
         <div className="text-center mb-6">
           <h1 className="font-display text-2xl sm:text-3xl font-bold mb-1">
-            <span className="gradient-cosmic-text">Your Creations</span>
+            <span className="gradient-cosmic-text">Community</span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            {totalCount} {styleFilter === "all" ? "session" : "track"}{totalCount !== 1 ? "s" : ""}
+            {totalCount} {styleFilter === "all" ? "session" : "track"}{totalCount !== 1 ? "s" : ""} — discover and share music videos
           </p>
         </div>
 
@@ -412,7 +413,7 @@ function SessionCard({
 }
 
 // ============================================================
-// Gallery Track Card — compact with image, play, download
+// Gallery Track Card — video-first with share link
 // ============================================================
 function GalleryTrackCard({
   track,
@@ -427,17 +428,18 @@ function GalleryTrackCard({
     trackName: string | null;
     audioUrl: string | null;
     imageUrl: string | null;
+    videoUrl?: string | null;
     status: string;
   };
   variantIcon: React.ReactNode;
   variantLabel: string;
   color: string;
 }) {
+  const [, navigate] = useLocation();
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const downloadMp3 = trpc.music.downloadMp3.useMutation();
-  const downloadMp4 = trpc.music.downloadMp4.useMutation();
-  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const hasVideo = !!track.videoUrl;
 
   const togglePlay = useCallback(() => {
     if (!track.audioUrl) return;
@@ -454,42 +456,10 @@ function GalleryTrackCard({
     }
   }, [isPlaying, track.audioUrl]);
 
-  const handleDownload = useCallback(
-    async (type: "mp3" | "mp4") => {
-      if (!track.audioUrl || downloading) return;
-      setDownloading(type);
-      try {
-        let result: { url: string; filename: string };
-        if (type === "mp3") {
-          result = await downloadMp3.mutateAsync({
-            audioUrl: track.audioUrl,
-            trackName: track.trackName ?? "muse-track",
-          });
-        } else {
-          result = await downloadMp4.mutateAsync({
-            audioUrl: track.audioUrl,
-            imageUrl: track.imageUrl ?? undefined,
-            trackName: track.trackName ?? "muse-track",
-          });
-        }
-        const a = document.createElement("a");
-        a.href = result.url;
-        a.download = result.filename;
-        a.target = "_blank";
-        a.click();
-      } catch (err) {
-        console.error(`${type} download failed:`, err);
-      } finally {
-        setDownloading(null);
-      }
-    },
-    [track.audioUrl, track.trackName, track.imageUrl, downloadMp3, downloadMp4, downloading]
-  );
-
   return (
     <div
       className={`rounded-lg overflow-hidden border transition-all ${
-        isPlaying ? "border-primary/30 shadow-md shadow-primary/5" : "border-border/10"
+        isPlaying ? "border-primary/30 shadow-md shadow-primary/5" : hasVideo ? "border-primary/20" : "border-border/10"
       }`}
       style={{ background: "oklch(0.1 0.02 280)" }}
     >
@@ -510,6 +480,14 @@ function GalleryTrackCard({
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+        {/* Video badge */}
+        {hasVideo && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm">
+            <Film className="w-2.5 h-2.5 text-white" />
+            <span className="text-[9px] font-semibold text-white">VIDEO</span>
+          </div>
+        )}
 
         {/* Play button */}
         {track.audioUrl && (
@@ -543,40 +521,29 @@ function GalleryTrackCard({
         )}
       </div>
 
-      {/* Info + downloads */}
+      {/* Info + actions */}
       <div className="p-2.5">
         <div className="flex items-center gap-1.5 mb-2">
           {variantIcon}
           <span className="text-[10px] text-muted-foreground">{variantLabel}</span>
         </div>
 
-        {track.audioUrl && (
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => handleDownload("mp3")}
-              disabled={!!downloading}
-              className="flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {downloading === "mp3" ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Music2 className="w-3 h-3" />
-              )}
-              MP3
-            </button>
-            <button
-              onClick={() => handleDownload("mp4")}
-              disabled={!!downloading}
-              className="flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {downloading === "mp4" ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Video className="w-3 h-3" />
-              )}
-              MP4
-            </button>
-          </div>
+        {hasVideo ? (
+          <button
+            onClick={() => navigate(`/share/${track.id}`)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-full text-[10px] font-semibold text-white transition-colors cursor-pointer gradient-cosmic hover:opacity-90"
+          >
+            <Share2 className="w-3 h-3" />
+            View & Share
+          </button>
+        ) : (
+          <button
+            onClick={() => navigate(`/share/${track.id}`)}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer"
+          >
+            <Film className="w-3 h-3" />
+            View Track
+          </button>
         )}
       </div>
     </div>
