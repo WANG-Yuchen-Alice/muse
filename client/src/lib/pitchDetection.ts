@@ -131,10 +131,17 @@ export async function analyzeHumToNotes(
   // ===== MELODY EXTRACTION: Time-Window Sampling =====
   const melody = extractMelodyByTimeWindows(timedNotes);
 
+  onProgress?.(85);
+
+  // ===== SNAP TO NATURAL NOTES (remove semitones) =====
+  // Sharps/flats from humming are usually transition glides, not intentional notes.
+  // Snap each note to the nearest natural note (C, D, E, F, G, A, B).
+  const snapped = snapToNaturalNotes(melody);
+
   onProgress?.(90);
 
   // Convert to our DetectedNote format
-  const detectedNotes: DetectedNote[] = melody.map((n) => ({
+  const detectedNotes: DetectedNote[] = snapped.map((n) => ({
     note: midiToNoteName(n.pitchMidi),
     freq: midiToHz(n.pitchMidi),
     startTime: n.startTimeSeconds,
@@ -272,6 +279,60 @@ function extractMelodyByTimeWindows(
   );
 
   return cleaned;
+}
+
+/**
+ * Snap all notes to the nearest natural note (no sharps/flats).
+ * MIDI note numbers for sharps: 1(C#), 3(D#), 6(F#), 8(G#), 10(A#) within each octave.
+ * Each sharp is snapped DOWN to the natural below it (e.g., C#→C, F#→F).
+ * After snapping, merge consecutive notes that now have the same pitch.
+ */
+function snapToNaturalNotes(
+  notes: NoteEventTime[]
+): NoteEventTime[] {
+  // Natural note indices within an octave: C=0, D=2, E=4, F=5, G=7, A=9, B=11
+  // Sharp indices: C#=1, D#=3, F#=6, G#=8, A#=10
+  // Snap map: sharp → nearest natural below
+  const snapDown: Record<number, number> = {
+    1: 0,   // C# → C
+    3: 2,   // D# → D
+    6: 5,   // F# → F
+    8: 7,   // G# → G
+    10: 9,  // A# → A
+  };
+
+  // Snap each note
+  const snappedNotes: NoteEventTime[] = notes.map((n) => {
+    const noteInOctave = n.pitchMidi % 12;
+    if (noteInOctave in snapDown) {
+      const offset = noteInOctave - snapDown[noteInOctave];
+      return { ...n, pitchMidi: n.pitchMidi - offset };
+    }
+    return n;
+  });
+
+  // Merge consecutive notes with the same pitch after snapping
+  const merged: NoteEventTime[] = [];
+  for (const note of snappedNotes) {
+    const prev = merged[merged.length - 1];
+    if (
+      prev &&
+      prev.pitchMidi === note.pitchMidi &&
+      note.startTimeSeconds - (prev.startTimeSeconds + prev.durationSeconds) < 0.05
+    ) {
+      // Extend previous note to cover this one
+      prev.durationSeconds =
+        note.startTimeSeconds + note.durationSeconds - prev.startTimeSeconds;
+      // Keep higher amplitude
+      if (note.amplitude > prev.amplitude) {
+        prev.amplitude = note.amplitude;
+      }
+    } else {
+      merged.push({ ...note });
+    }
+  }
+
+  return merged;
 }
 
 /**

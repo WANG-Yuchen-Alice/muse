@@ -100,3 +100,4 @@
 - [x] Update frontend to upload hum audio and display Gemini results
 - [x] Fix: Gemini hum analysis inaccurate — revert to Basic Pitch (notes were correct, just too many)
 - [x] Implement smarter melody sampling from Basic Pitch output (downsample, keep strongest per time window)
+- [x] Feature: Filter out semitones (sharps/flats) from hum detection — only keep natural notes (C,D,E,F,G,A,B)
