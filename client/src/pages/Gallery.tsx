@@ -23,6 +23,9 @@ import {
   Fingerprint,
   ChevronDown,
   ChevronUp,
+  Download,
+  Link2,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -413,7 +416,7 @@ function SessionCard({
 }
 
 // ============================================================
-// Gallery Track Card — video-first with share link
+// Gallery Track Card — full actions: play, download, share, video
 // ============================================================
 function GalleryTrackCard({
   track,
@@ -438,8 +441,10 @@ function GalleryTrackCard({
   const [, navigate] = useLocation();
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const hasVideo = !!track.videoUrl;
+  const hasAudio = !!track.audioUrl;
 
   const togglePlay = useCallback(() => {
     if (!track.audioUrl) return;
@@ -456,10 +461,60 @@ function GalleryTrackCard({
     }
   }, [isPlaying, track.audioUrl]);
 
+  const handleDownload = useCallback(
+    (type: "audio" | "video") => {
+      const url = type === "video" ? track.videoUrl : track.audioUrl;
+      if (!url) return;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(track.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${type === "video" ? "mp4" : "mp3"}`;
+      a.target = "_blank";
+      a.click();
+    },
+    [track]
+  );
+
+  const handleShare = useCallback(async () => {
+    const shareUrl = `${window.location.origin}/share/${track.id}`;
+    let shared = false;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: track.trackName || "Muse Track",
+          text: `Check out this AI-generated music: ${track.trackName}`,
+          url: shareUrl,
+        });
+        shared = true;
+      } catch {
+        // navigator.share failed — fall through to clipboard
+      }
+    }
+    if (!shared) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+      } catch {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }, [track]);
+
   return (
     <div
       className={`rounded-lg overflow-hidden border transition-all ${
-        isPlaying ? "border-primary/30 shadow-md shadow-primary/5" : hasVideo ? "border-primary/20" : "border-border/10"
+        isPlaying
+          ? "border-primary/30 shadow-md shadow-primary/5"
+          : hasVideo
+            ? "border-primary/20"
+            : "border-border/10"
       }`}
       style={{ background: "oklch(0.1 0.02 280)" }}
     >
@@ -490,7 +545,7 @@ function GalleryTrackCard({
         )}
 
         {/* Play button */}
-        {track.audioUrl && (
+        {hasAudio && (
           <button
             onClick={togglePlay}
             className="absolute inset-0 flex items-center justify-center group cursor-pointer"
@@ -521,30 +576,71 @@ function GalleryTrackCard({
         )}
       </div>
 
-      {/* Info + actions */}
+      {/* Info + action buttons */}
       <div className="p-2.5">
         <div className="flex items-center gap-1.5 mb-2">
           {variantIcon}
           <span className="text-[10px] text-muted-foreground">{variantLabel}</span>
         </div>
 
-        {hasVideo ? (
+        {/* Action row: Download MP3 | Share | Video */}
+        <div className="flex gap-1.5 mb-1.5">
+          {/* Download MP3 */}
+          {hasAudio && (
+            <button
+              onClick={() => handleDownload("audio")}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer border border-border/10"
+              title="Download MP3"
+            >
+              <Download className="w-3 h-3" />
+              <span className="hidden sm:inline">MP3</span>
+            </button>
+          )}
+
+          {/* Share */}
           <button
-            onClick={() => navigate(`/share/${track.id}`)}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-full text-[10px] font-semibold text-white transition-colors cursor-pointer gradient-cosmic hover:opacity-90"
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer border border-border/10"
+            title="Share track"
           >
-            <Share2 className="w-3 h-3" />
-            View & Share
+            {linkCopied ? (
+              <>
+                <Check className="w-3 h-3 text-green-400" />
+                <span className="text-green-400 hidden sm:inline">Copied</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3 h-3" />
+                <span className="hidden sm:inline">Share</span>
+              </>
+            )}
           </button>
-        ) : (
-          <button
-            onClick={() => navigate(`/share/${track.id}`)}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer"
-          >
-            <Film className="w-3 h-3" />
-            View Track
-          </button>
-        )}
+
+          {/* Download Video (if exists) */}
+          {hasVideo && (
+            <button
+              onClick={() => handleDownload("video")}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors cursor-pointer border border-border/10"
+              title="Download Video"
+            >
+              <Film className="w-3 h-3" />
+              <span className="hidden sm:inline">Video</span>
+            </button>
+          )}
+        </div>
+
+        {/* Generate Video / View Video button */}
+        <button
+          onClick={() => navigate(`/share/${track.id}`)}
+          className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-full text-[10px] font-semibold transition-colors cursor-pointer ${
+            hasVideo
+              ? "gradient-cosmic text-white hover:opacity-90"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/5 border border-border/20"
+          }`}
+        >
+          <Film className="w-3 h-3" />
+          {hasVideo ? "View Music Video" : "Create Music Video"}
+        </button>
       </div>
     </div>
   );

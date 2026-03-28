@@ -101,3 +101,8 @@
 - [x] Fix: Gemini hum analysis inaccurate — revert to Basic Pitch (notes were correct, just too many)
 - [x] Implement smarter melody sampling from Basic Pitch output (downsample, keep strongest per time window)
 - [x] Feature: Filter out semitones (sharps/flats) from hum detection — only keep natural notes (C,D,E,F,G,A,B)
+- [x] Feature: Gallery tracks — enable Share button (MP3 share)
+- [x] Feature: Gallery tracks — enable Download MP3 button
+- [x] Feature: Gallery tracks — enable Generate Video button (Video Studio)
+- [x] Feature: Gallery tracks — show existing video if previously generated
+- [x] Feature: Gallery tracks — enable Download/Share Video buttons when video exists

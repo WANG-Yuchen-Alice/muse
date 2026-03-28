@@ -1,8 +1,14 @@
 /**
  * Muse — Share Page
- * Public-facing page for a single track's music video.
+ * Public-facing page for a single track.
  * URL: /share/:trackId
- * Designed for social media link previews and direct video sharing.
+ *
+ * Features:
+ * - Play audio
+ * - Download MP3 / Download Video
+ * - Share link
+ * - Generate Video (if no video exists yet)
+ * - View existing video
  */
 import { useState, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
@@ -43,27 +49,38 @@ export default function Share() {
   const [, navigate] = useLocation();
   const params = useParams<{ trackId: string }>();
   const trackId = parseInt(params.trackId ?? "0", 10);
+  const utils = trpc.useUtils();
 
   const { data: track, isLoading, error } = trpc.gallery.getTrack.useQuery(
     { trackId },
     { enabled: trackId > 0 }
   );
 
+  const generateVideoMut = trpc.music.generateVideo.useMutation();
+
   const [linkCopied, setLinkCopied] = useState(false);
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [videoGenerating, setVideoGenerating] = useState(false);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
   const color = track?.color ?? STYLE_META[track?.styleId ?? ""]?.color ?? "#A78BFA";
   const styleName = track?.styleName ?? STYLE_META[track?.styleId ?? ""]?.name ?? "";
 
-  const handleDownload = useCallback(() => {
-    const url = track?.videoUrl || track?.audioUrl;
-    if (!url) return;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(track?.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${track?.videoUrl ? "mp4" : "mp3"}`;
-    a.target = "_blank";
-    a.click();
-  }, [track]);
+  // The effective video URL: either from DB or just generated
+  const videoUrl = generatedVideoUrl || track?.videoUrl;
+  const hasVideo = !!videoUrl;
+
+  const handleDownload = useCallback(
+    (type: "audio" | "video") => {
+      const url = type === "video" ? videoUrl : track?.audioUrl;
+      if (!url) return;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(track?.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${type === "video" ? "mp4" : "mp3"}`;
+      a.target = "_blank";
+      a.click();
+    },
+    [track, videoUrl]
+  );
 
   const handleShare = useCallback(async () => {
     const shareUrl = window.location.href;
@@ -84,7 +101,6 @@ export default function Share() {
       try {
         await navigator.clipboard.writeText(shareUrl);
       } catch {
-        // Clipboard API not available — try execCommand fallback
         const textArea = document.createElement("textarea");
         textArea.value = shareUrl;
         textArea.style.position = "fixed";
@@ -100,10 +116,36 @@ export default function Share() {
   }, [track]);
 
   const handleCopyLink = useCallback(async () => {
-    await navigator.clipboard.writeText(window.location.href);
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch {
+      // fallback
+    }
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   }, []);
+
+  const handleGenerateVideo = useCallback(async () => {
+    if (!track || videoGenerating) return;
+    setVideoGenerating(true);
+    try {
+      const result = await generateVideoMut.mutateAsync({
+        audioUrl: track.audioUrl || "",
+        imageUrl: track.imageUrl || undefined,
+        trackName: track.trackName || track.styleId,
+        styleId: track.styleId,
+        color: color,
+        melodyDescription: undefined,
+      });
+      setGeneratedVideoUrl(result.url);
+      // Invalidate the track query so it picks up the new videoUrl from DB
+      utils.gallery.getTrack.invalidate({ trackId });
+    } catch (err) {
+      console.error("Video generation failed:", err);
+    } finally {
+      setVideoGenerating(false);
+    }
+  }, [track, videoGenerating, generateVideoMut, color, utils, trackId]);
 
   if (isLoading) {
     return (
@@ -140,7 +182,7 @@ export default function Share() {
               variant="ghost"
               size="icon"
               className="w-8 h-8 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/create")}
+              onClick={() => navigate("/gallery")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
@@ -182,10 +224,10 @@ export default function Share() {
           </div>
 
           {/* Video / Image display */}
-          {track.videoUrl ? (
+          {hasVideo ? (
             <div className="rounded-xl overflow-hidden border border-border/20 bg-black mb-6">
               <video
-                src={track.videoUrl}
+                src={videoUrl!}
                 controls
                 autoPlay
                 loop
@@ -215,7 +257,8 @@ export default function Share() {
               )}
             </div>
           ) : track.audioUrl ? (
-            <div className="rounded-xl border border-border/20 p-6 mb-6 text-center"
+            <div
+              className="rounded-xl border border-border/20 p-6 mb-6 text-center"
               style={{ background: `linear-gradient(135deg, ${color}10, oklch(0.1 0.02 280))` }}
             >
               <Film className="w-12 h-12 mx-auto mb-3" style={{ color }} />
@@ -223,16 +266,33 @@ export default function Share() {
             </div>
           ) : null}
 
-          {/* Action buttons */}
-          <div className="flex gap-3 mb-4">
-            <Button
-              onClick={handleDownload}
-              variant="outline"
-              className="flex-1 gap-2 h-11"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </Button>
+          {/* Primary action buttons */}
+          <div className="flex gap-3 mb-3">
+            {/* Download MP3 */}
+            {track.audioUrl && (
+              <Button
+                onClick={() => handleDownload("audio")}
+                variant="outline"
+                className="flex-1 gap-2 h-11"
+              >
+                <Download className="w-4 h-4" />
+                MP3
+              </Button>
+            )}
+
+            {/* Download Video */}
+            {hasVideo && (
+              <Button
+                onClick={() => handleDownload("video")}
+                variant="outline"
+                className="flex-1 gap-2 h-11"
+              >
+                <Film className="w-4 h-4" />
+                Video
+              </Button>
+            )}
+
+            {/* Share */}
             <Button
               onClick={handleShare}
               className="flex-1 gap-2 h-11 gradient-cosmic text-background border-0 hover:opacity-90"
@@ -240,7 +300,7 @@ export default function Share() {
               {linkCopied ? (
                 <>
                   <Check className="w-4 h-4" />
-                  Link Copied!
+                  Copied!
                 </>
               ) : (
                 <>
@@ -250,6 +310,28 @@ export default function Share() {
               )}
             </Button>
           </div>
+
+          {/* Generate Video button (always visible, whether video exists or not) */}
+          {!hasVideo && track.audioUrl && (
+            <Button
+              onClick={handleGenerateVideo}
+              disabled={videoGenerating}
+              variant="outline"
+              className="w-full gap-2 h-11 mb-3 border-primary/30 hover:bg-primary/5"
+            >
+              {videoGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating AI Video... (1-3 min)
+                </>
+              ) : (
+                <>
+                  <Film className="w-4 h-4" />
+                  Create Music Video
+                </>
+              )}
+            </Button>
+          )}
 
           {/* Copy link */}
           <div className="text-center mb-6">
@@ -282,9 +364,7 @@ export default function Share() {
 
           {/* CTA */}
           <div className="text-center">
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/20 bg-white/5"
-            >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/20 bg-white/5">
               <img src={LOGO} alt="Muse" className="w-5 h-5" />
               <span className="text-xs text-muted-foreground">
                 Created with <span className="font-semibold text-foreground">Muse</span> — AI Music Generator
