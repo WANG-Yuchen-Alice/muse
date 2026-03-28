@@ -526,6 +526,138 @@ export const appRouter = router({
         return { url };
       }),
 
+    /** Analyze hummed audio using Gemini to detect musical notes */
+    analyzeHum: publicProcedure
+      .input(z.object({ audioBase64: z.string(), mimeType: z.string().default("audio/webm") }))
+      .mutation(async ({ input }) => {
+        // 1. Upload audio to S3 so Gemini can access it
+        const buffer = Buffer.from(input.audioBase64, "base64");
+        const ext = input.mimeType.includes("wav") ? "wav" : input.mimeType.includes("mp3") ? "mp3" : "webm";
+        const key = `hum-analysis/${nanoid()}.${ext}`;
+        const { url: audioUrl } = await storagePut(key, buffer, input.mimeType);
+
+        // 2. Send to Gemini with structured output for note detection
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert music transcription AI. You will receive an audio recording of someone humming or singing a melody. Your task is to identify the musical notes being hummed and return them as a precise sequence.
+
+Rules:
+- Only detect the main melody line — ignore background noise, breathing, and harmonics
+- Use standard note names with octave numbers (e.g., C4, D#5, A3)
+- The typical humming range is C3 to C6
+- Estimate the start time (in seconds from the beginning) and duration (in seconds) for each note
+- If a note is held/sustained, give it a longer duration
+- If there are pauses between notes, reflect that in the start times
+- Return notes in chronological order
+- Be conservative: only include notes you are confident about
+- Estimate an amplitude/confidence for each note from 0.0 to 1.0`,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text" as const,
+                  text: "Please transcribe the musical notes from this humming recording. Return the notes as a JSON array.",
+                },
+                {
+                  type: "file_url" as const,
+                  file_url: {
+                    url: audioUrl,
+                    mime_type: "audio/mpeg" as const,
+                  },
+                },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "hum_notes",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  notes: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        note: { type: "string", description: "Note name with octave, e.g. C4, D#5" },
+                        startTime: { type: "number", description: "Start time in seconds from beginning" },
+                        duration: { type: "number", description: "Duration in seconds" },
+                        amplitude: { type: "number", description: "Confidence/amplitude 0.0-1.0" },
+                      },
+                      required: ["note", "startTime", "duration", "amplitude"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["notes"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        // 3. Parse the structured response
+        const content = response.choices?.[0]?.message?.content;
+        const contentStr = typeof content === "string" ? content : "";
+        let parsedNotes: Array<{
+          note: string;
+          startTime: number;
+          duration: number;
+          amplitude: number;
+        }> = [];
+
+        try {
+          const parsed = JSON.parse(contentStr);
+          parsedNotes = parsed.notes ?? [];
+        } catch (err) {
+          console.error("Failed to parse Gemini hum analysis:", err, contentStr);
+          throw new Error("Failed to analyze humming. Please try again.");
+        }
+
+        // 4. Validate and normalize notes
+        const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        const validNotes = parsedNotes
+          .filter((n) => {
+            const match = n.note.match(/^([A-G]#?)(\d+)$/);
+            if (!match) return false;
+            if (typeof n.startTime !== "number" || typeof n.duration !== "number") return false;
+            if (n.duration <= 0) return false;
+            return true;
+          })
+          .map((n) => {
+            const match = n.note.match(/^([A-G]#?)(\d+)$/)!;
+            const [, noteName, octaveStr] = match;
+            const octave = parseInt(octaveStr);
+            const noteIdx = NOTE_NAMES.indexOf(noteName);
+            const midiNumber = (octave + 1) * 12 + noteIdx;
+            const freq = 440 * Math.pow(2, (midiNumber - 69) / 12);
+
+            // Transpose to C4-B5 range for piano visualization
+            let displayMidi = midiNumber;
+            while (displayMidi < 60) displayMidi += 12;
+            while (displayMidi > 83) displayMidi -= 12;
+            const displayOctave = Math.floor(displayMidi / 12) - 1;
+            const displayNoteName = NOTE_NAMES[displayMidi % 12];
+
+            return {
+              note: `${displayNoteName}${displayOctave}`,
+              freq,
+              startTime: Math.max(0, n.startTime),
+              duration: Math.max(0.05, n.duration),
+              midiNumber: displayMidi,
+              amplitude: Math.max(0, Math.min(1, n.amplitude ?? 0.8)),
+            };
+          })
+          .sort((a, b) => a.startTime - b.startTime);
+
+        return { notes: validNotes, audioUrl };
+      }),
+
     /** Create a generation session */
     createSession: publicProcedure
       .input(z.object({

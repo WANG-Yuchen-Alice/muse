@@ -93,3 +93,8 @@
 - [x] Integrate Spotify Basic Pitch ML model into the pipeline (replaced YIN algorithm)
 - [x] Fix: Basic Pitch detects too many notes (harmonics/noise) — extract main melody only
 - [x] Fix: Melody extraction too aggressive — missing some real notes, tune thresholds down
+- [x] Research: SOTA algorithms for voice/hum pitch detection and melody extraction
+- [x] Implement better hum-to-notes approach based on research → Gemini audio understanding
+- [x] Replace Basic Pitch with Gemini audio understanding for hum-to-notes detection
+- [x] Create server-side tRPC endpoint for Gemini hum analysis
+- [x] Update frontend to upload hum audio and display Gemini results
