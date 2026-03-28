@@ -98,3 +98,5 @@
 - [x] Replace Basic Pitch with Gemini audio understanding for hum-to-notes detection
 - [x] Create server-side tRPC endpoint for Gemini hum analysis
 - [x] Update frontend to upload hum audio and display Gemini results
+- [x] Fix: Gemini hum analysis inaccurate — revert to Basic Pitch (notes were correct, just too many)
+- [x] Implement smarter melody sampling from Basic Pitch output (downsample, keep strongest per time window)

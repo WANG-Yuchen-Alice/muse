@@ -2,10 +2,11 @@
  * HumToKeys — Hum-to-Piano-Keys Conversion & Verification UI
  *
  * After recording a hum, this component:
- * 1. Sends audio to server for Gemini AI analysis
- * 2. Shows detected notes on a mini piano visualization
- * 3. Allows playback of detected notes for verification
- * 4. Generates a new audio blob from the piano notes for the music generator
+ * 1. Runs Spotify Basic Pitch ML model in the browser for pitch detection
+ * 2. Applies time-window sampling to extract the main melody
+ * 3. Shows detected notes on a mini piano visualization
+ * 4. Allows playback of detected notes and original hum for verification
+ * 5. Generates a new audio blob from the piano notes for the music generator
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,8 +20,11 @@ import {
   Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { noteToFreq, type DetectedNote } from "@/lib/pitchDetection";
-import { trpc } from "@/lib/trpc";
+import {
+  analyzeHumToNotes,
+  noteToFreq,
+  type DetectedNote,
+} from "@/lib/pitchDetection";
 
 const NOTE_NAMES = [
   "C",
@@ -37,7 +41,7 @@ const NOTE_NAMES = [
   "B",
 ];
 
-// Piano keys C4 to B5
+// Piano keys C3 to B5 (3 octaves for wider range)
 const PIANO_NOTES = (() => {
   const notes: {
     note: string;
@@ -45,7 +49,7 @@ const PIANO_NOTES = (() => {
     isBlack: boolean;
     midiNumber: number;
   }[] = [];
-  for (let midi = 60; midi <= 83; midi++) {
+  for (let midi = 48; midi <= 83; midi++) {
     const octave = Math.floor(midi / 12) - 1;
     const noteIdx = midi % 12;
     const name = NOTE_NAMES[noteIdx];
@@ -73,6 +77,7 @@ export default function HumToKeys({
   onRerecord,
 }: HumToKeysProps) {
   const [analyzing, setAnalyzing] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [detectedNotes, setDetectedNotes] = useState<DetectedNote[] | null>(
     null
   );
@@ -85,8 +90,6 @@ export default function HumToKeys({
   const [isPlayingHum, setIsPlayingHum] = useState(false);
   const humAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const analyzeHum = trpc.music.analyzeHum.useMutation();
-
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
       audioCtxRef.current = new AudioContext();
@@ -94,29 +97,19 @@ export default function HumToKeys({
     return audioCtxRef.current;
   }, []);
 
-  // Analyze on mount — send to server for Gemini analysis
+  // Analyze on mount — run Basic Pitch in browser
   useEffect(() => {
     let cancelled = false;
     const analyze = async () => {
       setAnalyzing(true);
       setError(null);
+      setProgress(0);
       try {
-        // Convert blob to base64
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte),
-            ""
-          )
-        );
-
-        const result = await analyzeHum.mutateAsync({
-          audioBase64: base64,
-          mimeType: audioBlob.type,
+        const notes = await analyzeHumToNotes(audioBlob, (pct) => {
+          if (!cancelled) setProgress(Math.round(pct));
         });
 
         if (!cancelled) {
-          const notes = result.notes as DetectedNote[];
           setDetectedNotes(notes);
           if (notes.length === 0) {
             setError(
@@ -126,7 +119,7 @@ export default function HumToKeys({
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("Gemini hum analysis failed:", err);
+          console.error("Pitch detection failed:", err);
           setError("Failed to analyze audio. Please try again.");
         }
       } finally {
@@ -137,7 +130,6 @@ export default function HumToKeys({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioBlob]);
 
   // Play detected notes as piano sounds
@@ -161,20 +153,26 @@ export default function HumToKeys({
       const timeout = window.setTimeout(() => {
         setCurrentNoteIdx(idx);
 
-        // Play the note
+        // Play the note with a nicer piano-like sound
         const osc = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.value = noteToFreq(note.note);
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        osc2.type = "triangle";
+        osc2.frequency.value = noteToFreq(note.note);
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(
           0.001,
           ctx.currentTime + noteDuration
         );
         osc.connect(gain);
+        osc2.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
+        osc2.start();
         osc.stop(ctx.currentTime + noteDuration);
+        osc2.stop(ctx.currentTime + noteDuration);
       }, noteStartTime * 1000);
 
       playbackTimeoutRef.current.push(timeout);
@@ -217,22 +215,28 @@ export default function HumToKeys({
       sampleRate
     );
 
-    // Schedule all notes
+    // Schedule all notes with a nicer sound
     for (const note of detectedNotes) {
       const osc = offlineCtx.createOscillator();
+      const osc2 = offlineCtx.createOscillator();
       const gain = offlineCtx.createGain();
       osc.type = "sine";
       osc.frequency.value = noteToFreq(note.note);
+      osc2.type = "triangle";
+      osc2.frequency.value = noteToFreq(note.note);
       const noteDuration = Math.min(note.duration, 0.8);
-      gain.gain.setValueAtTime(0.3, note.startTime);
+      gain.gain.setValueAtTime(0.25, note.startTime);
       gain.gain.exponentialRampToValueAtTime(
         0.001,
         note.startTime + noteDuration
       );
       osc.connect(gain);
+      osc2.connect(gain);
       gain.connect(offlineCtx.destination);
       osc.start(note.startTime);
+      osc2.start(note.startTime);
       osc.stop(note.startTime + noteDuration);
+      osc2.stop(note.startTime + noteDuration);
     }
 
     // Render to buffer
@@ -278,26 +282,43 @@ export default function HumToKeys({
         </div>
         <p className="text-sm text-muted-foreground">
           {analyzing
-            ? "AI is listening to your hum..."
+            ? "ML model is analyzing your hum..."
             : detectedNotes && detectedNotes.length > 0
               ? `Detected ${detectedNotes.length} notes — listen to verify`
               : "Processing..."}
         </p>
       </div>
 
-      {/* Loading state */}
+      {/* Loading state with progress */}
       {analyzing && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-3 py-8"
+          className="flex flex-col items-center gap-3 py-6 w-full"
         >
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">
-            Gemini is analyzing your melody...
-          </p>
+          <div className="w-full max-w-xs">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Analyzing melody...</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-primary rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground/60">
-            This usually takes a few seconds
+            {progress < 10
+              ? "Loading ML model..."
+              : progress < 70
+                ? "Running pitch detection..."
+                : progress < 90
+                  ? "Extracting melody..."
+                  : "Almost done..."}
           </p>
         </motion.div>
       )}
@@ -337,7 +358,7 @@ export default function HumToKeys({
               </p>
               <div
                 className="relative select-none mx-auto"
-                style={{ height: 100, width: "100%", maxWidth: 420 }}
+                style={{ height: 100, width: "100%", maxWidth: 480 }}
               >
                 <div className="flex justify-center">
                   {WHITE_KEYS.map((key) => {
@@ -354,19 +375,23 @@ export default function HumToKeys({
                               : "bg-gray-100/90"
                         }`}
                         style={{
-                          width: "calc(100% / 14)",
-                          minWidth: 20,
+                          width: `${100 / WHITE_KEYS.length}%`,
+                          minWidth: 14,
                         }}
                       >
-                        <span
-                          className={`absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] ${
-                            isCurrent || isActive
-                              ? "text-primary-foreground font-bold"
-                              : "text-gray-400"
-                          }`}
-                        >
-                          {key.note.replace(/\d/, "")}
-                        </span>
+                        {(key.note.startsWith("C") ||
+                          isActive ||
+                          isCurrent) && (
+                          <span
+                            className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[7px] ${
+                              isCurrent || isActive
+                                ? "text-primary-foreground font-bold"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            {key.note}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -384,8 +409,8 @@ export default function HumToKeys({
                         <div
                           key={key.note}
                           style={{
-                            width: "calc(100% / 14)",
-                            minWidth: 20,
+                            width: `${100 / WHITE_KEYS.length}%`,
+                            minWidth: 14,
                           }}
                         />
                       );
@@ -397,12 +422,12 @@ export default function HumToKeys({
                         key={key.note}
                         className="relative"
                         style={{
-                          width: "calc(100% / 14)",
-                          minWidth: 20,
+                          width: `${100 / WHITE_KEYS.length}%`,
+                          minWidth: 14,
                         }}
                       >
                         <div
-                          className={`absolute -right-2 w-4 h-14 rounded-b transition-all ${
+                          className={`absolute -right-1.5 w-3 h-14 rounded-b transition-all ${
                             isCurrent
                               ? "bg-primary shadow-lg shadow-primary/30"
                               : isActive
