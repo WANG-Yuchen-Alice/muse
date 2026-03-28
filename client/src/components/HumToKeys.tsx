@@ -9,7 +9,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, Loader2, Music, Piano, CheckCircle2, RotateCcw } from "lucide-react";
+import { Play, Pause, Loader2, Music, Piano, CheckCircle2, RotateCcw, Mic, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   analyzeHumToNotes,
@@ -46,6 +46,7 @@ interface HumToKeysProps {
 
 export default function HumToKeys({ audioBlob, onConfirm, onRerecord }: HumToKeysProps) {
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState(0);
   const [detectedNotes, setDetectedNotes] = useState<DetectedNote[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -53,6 +54,8 @@ export default function HumToKeys({ audioBlob, onConfirm, onRerecord }: HumToKey
   const [confirmed, setConfirmed] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playbackTimeoutRef = useRef<number[]>([]);
+  const [isPlayingHum, setIsPlayingHum] = useState(false);
+  const humAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
@@ -68,7 +71,9 @@ export default function HumToKeys({ audioBlob, onConfirm, onRerecord }: HumToKey
       setAnalyzing(true);
       setError(null);
       try {
-        const notes = await analyzeHumToNotes(audioBlob);
+        const notes = await analyzeHumToNotes(audioBlob, (pct) => {
+          if (!cancelled) setAnalyzeProgress(Math.round(pct * 100));
+        });
         if (!cancelled) {
           setDetectedNotes(notes);
           if (notes.length === 0) {
@@ -182,6 +187,10 @@ export default function HumToKeys({ audioBlob, onConfirm, onRerecord }: HumToKey
   useEffect(() => {
     return () => {
       playbackTimeoutRef.current.forEach(clearTimeout);
+      if (humAudioRef.current) {
+        humAudioRef.current.pause();
+        humAudioRef.current = null;
+      }
     };
   }, []);
 
@@ -222,7 +231,21 @@ export default function HumToKeys({ audioBlob, onConfirm, onRerecord }: HumToKey
           className="flex flex-col items-center gap-3 py-8"
         >
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">Detecting pitch from your hum...</p>
+          <p className="text-sm text-muted-foreground">
+            {analyzeProgress > 0
+              ? `Analyzing with AI... ${analyzeProgress}%`
+              : "Loading ML model..."}
+          </p>
+          {analyzeProgress > 0 && (
+            <div className="w-48 h-1.5 bg-muted rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-primary rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${analyzeProgress}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -338,16 +361,66 @@ export default function HumToKeys({ audioBlob, onConfirm, onRerecord }: HumToKey
             </div>
 
             {/* Playback controls */}
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-wrap gap-3 justify-center">
+              {/* Replay original hum */}
               <Button
                 variant="outline"
-                onClick={isPlaying ? stopPlayback : playNotes}
+                onClick={() => {
+                  if (isPlayingHum) {
+                    humAudioRef.current?.pause();
+                    if (humAudioRef.current) humAudioRef.current.currentTime = 0;
+                    setIsPlayingHum(false);
+                  } else {
+                    // Stop piano preview if playing
+                    if (isPlaying) stopPlayback();
+                    const url = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(url);
+                    humAudioRef.current = audio;
+                    audio.onended = () => {
+                      setIsPlayingHum(false);
+                      URL.revokeObjectURL(url);
+                    };
+                    audio.play();
+                    setIsPlayingHum(true);
+                  }
+                }}
+                className="gap-2"
+              >
+                {isPlayingHum ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    Stop Hum
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4" />
+                    Replay My Hum
+                  </>
+                )}
+              </Button>
+
+              {/* Preview piano notes */}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (isPlaying) {
+                    stopPlayback();
+                  } else {
+                    // Stop hum if playing
+                    if (isPlayingHum) {
+                      humAudioRef.current?.pause();
+                      if (humAudioRef.current) humAudioRef.current.currentTime = 0;
+                      setIsPlayingHum(false);
+                    }
+                    playNotes();
+                  }
+                }}
                 className="gap-2"
               >
                 {isPlaying ? (
                   <>
                     <Pause className="w-4 h-4" />
-                    Stop Preview
+                    Stop Piano
                   </>
                 ) : (
                   <>

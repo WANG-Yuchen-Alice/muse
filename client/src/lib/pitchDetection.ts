@@ -1,241 +1,163 @@
 /**
- * Hum → Piano Keys Conversion
- * Uses YIN pitch detection algorithm to extract notes from a hum recording.
- * Returns a sequence of {note, startTime, duration} that can be played back on the piano.
+ * Pitch Detection — Using Spotify's Basic Pitch ML model
+ *
+ * Converts hummed audio to musical note events using a lightweight neural network.
+ * Much more accurate than traditional DSP-based pitch detection (YIN, autocorrelation).
+ *
+ * Basic Pitch outputs NoteEventTime objects with:
+ *   - startTimeSeconds, durationSeconds, pitchMidi, amplitude, pitchBends
+ *
+ * We convert pitchMidi → note name (e.g. "C4", "F#5") for our UI.
  */
 
-// Note names for mapping
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+import {
+  BasicPitch,
+  noteFramesToTime,
+  addPitchBendsToNoteEvents,
+  outputToNotesPoly,
+} from "@spotify/basic-pitch";
 
-// Piano range: C3 to C6 (roughly 130Hz to 1046Hz)
-const MIN_FREQ = 80;
-const MAX_FREQ = 1200;
+const NOTE_NAMES = [
+  "C",
+  "C#",
+  "D",
+  "D#",
+  "E",
+  "F",
+  "F#",
+  "G",
+  "G#",
+  "A",
+  "A#",
+  "B",
+];
 
 export interface DetectedNote {
   note: string; // e.g. "C4", "A#5"
-  freq: number; // detected frequency in Hz
+  freq: number; // frequency in Hz
   startTime: number; // seconds from start
   duration: number; // seconds
   midiNumber: number; // MIDI note number
+  amplitude: number; // 0-1
 }
 
 /**
- * Convert frequency to note name and MIDI number
+ * Convert MIDI number to note name
  */
-function freqToNote(freq: number): { note: string; midiNumber: number } | null {
-  if (freq < MIN_FREQ || freq > MAX_FREQ) return null;
-  const midiNumber = Math.round(12 * Math.log2(freq / 440) + 69);
-  const octave = Math.floor(midiNumber / 12) - 1;
-  const noteIdx = midiNumber % 12;
-  return {
-    note: `${NOTE_NAMES[noteIdx]}${octave}`,
-    midiNumber,
-  };
+function midiToNoteName(midi: number): string {
+  const octave = Math.floor(midi / 12) - 1;
+  const noteIdx = midi % 12;
+  return `${NOTE_NAMES[noteIdx]}${octave}`;
 }
 
 /**
- * Simple YIN-based pitch detection for a single frame
- * Returns frequency in Hz or null if no pitch detected
+ * Convert MIDI number to frequency in Hz
  */
-function detectPitchYIN(buffer: Float32Array, sampleRate: number): number | null {
-  const SIZE = buffer.length;
-  const halfSize = Math.floor(SIZE / 2);
-
-  // Check if there's enough signal
-  let rms = 0;
-  for (let i = 0; i < SIZE; i++) {
-    rms += buffer[i] * buffer[i];
-  }
-  rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return null; // too quiet
-
-  // YIN difference function
-  const yinBuffer = new Float32Array(halfSize);
-  for (let tau = 0; tau < halfSize; tau++) {
-    let sum = 0;
-    for (let i = 0; i < halfSize; i++) {
-      const delta = buffer[i] - buffer[i + tau];
-      sum += delta * delta;
-    }
-    yinBuffer[tau] = sum;
-  }
-
-  // Cumulative mean normalized difference
-  yinBuffer[0] = 1;
-  let runningSum = 0;
-  for (let tau = 1; tau < halfSize; tau++) {
-    runningSum += yinBuffer[tau];
-    yinBuffer[tau] *= tau / runningSum;
-  }
-
-  // Absolute threshold
-  const threshold = 0.15;
-  let tauEstimate = -1;
-
-  for (let tau = 2; tau < halfSize; tau++) {
-    if (yinBuffer[tau] < threshold) {
-      while (tau + 1 < halfSize && yinBuffer[tau + 1] < yinBuffer[tau]) {
-        tau++;
-      }
-      tauEstimate = tau;
-      break;
-    }
-  }
-
-  if (tauEstimate === -1) return null;
-
-  // Parabolic interpolation for better accuracy
-  let betterTau: number;
-  const x0 = tauEstimate < 1 ? tauEstimate : tauEstimate - 1;
-  const x2 = tauEstimate + 1 < halfSize ? tauEstimate + 1 : tauEstimate;
-
-  if (x0 === tauEstimate) {
-    betterTau = yinBuffer[tauEstimate] <= yinBuffer[x2] ? tauEstimate : x2;
-  } else if (x2 === tauEstimate) {
-    betterTau = yinBuffer[tauEstimate] <= yinBuffer[x0] ? tauEstimate : x0;
-  } else {
-    const s0 = yinBuffer[x0];
-    const s1 = yinBuffer[tauEstimate];
-    const s2 = yinBuffer[x2];
-    betterTau = tauEstimate + (s2 - s0) / (2 * (2 * s1 - s2 - s0));
-  }
-
-  return sampleRate / betterTau;
+function midiToHz(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
 /**
- * Analyze an audio blob and extract a sequence of musical notes.
- * This is the main function for hum-to-piano-keys conversion.
+ * Get the frequency for a given note name (e.g. "C4" -> 261.63)
+ */
+export function noteToFreq(noteName: string): number {
+  const match = noteName.match(/^([A-G]#?)(\d+)$/);
+  if (!match) return 440;
+  const [, name, octaveStr] = match;
+  const octave = parseInt(octaveStr);
+  const noteIdx = NOTE_NAMES.indexOf(name);
+  if (noteIdx === -1) return 440;
+  const midiNumber = (octave + 1) * 12 + noteIdx;
+  return 440 * Math.pow(2, (midiNumber - 69) / 12);
+}
+
+// Cache the model instance so we don't reload it on every analysis
+let cachedBasicPitch: BasicPitch | null = null;
+
+function getBasicPitch(): BasicPitch {
+  if (!cachedBasicPitch) {
+    // Model files are copied to public/models/ for reliable browser loading
+    // TensorFlow.js loadGraphModel will fetch model.json and its weight shard
+    cachedBasicPitch = new BasicPitch("/models/model.json");
+  }
+  return cachedBasicPitch;
+}
+
+/**
+ * Analyze a hummed audio blob and return detected musical notes
+ * using Spotify's Basic Pitch ML model.
  */
 export async function analyzeHumToNotes(
   audioBlob: Blob,
-  options?: {
-    frameSize?: number; // samples per analysis frame (default 2048)
-    hopSize?: number; // samples between frames (default 512)
-    minNoteDuration?: number; // minimum note duration in seconds (default 0.08)
-    mergeThreshold?: number; // merge notes within this many semitones (default 1)
-  }
+  onProgress?: (percent: number) => void
 ): Promise<DetectedNote[]> {
-  const frameSize = options?.frameSize ?? 2048;
-  const hopSize = options?.hopSize ?? 512;
-  const minNoteDuration = options?.minNoteDuration ?? 0.08;
-
-  // Decode audio
-  const audioCtx = new OfflineAudioContext(1, 1, 44100);
+  // Decode audio with browser's AudioContext
   const arrayBuffer = await audioBlob.arrayBuffer();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
-  const sampleRate = audioBuffer.sampleRate;
-  const channelData = audioBuffer.getChannelData(0);
-
-  // Detect pitch for each frame
-  const rawPitches: { freq: number | null; time: number }[] = [];
-
-  for (let i = 0; i + frameSize <= channelData.length; i += hopSize) {
-    const frame = channelData.slice(i, i + frameSize);
-    const freq = detectPitchYIN(frame, sampleRate);
-    const time = i / sampleRate;
-
-    if (freq && freq >= MIN_FREQ && freq <= MAX_FREQ) {
-      rawPitches.push({ freq, time });
-    } else {
-      rawPitches.push({ freq: null, time });
-    }
+  const tempCtx = new AudioContext({ sampleRate: 22050 });
+  let audioBuffer: AudioBuffer;
+  try {
+    audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+  } finally {
+    await tempCtx.close();
   }
 
-  // Group consecutive same-note frames into notes
-  const notes: DetectedNote[] = [];
-  let currentNote: { note: string; freq: number; midiNumber: number; startTime: number; endTime: number } | null = null;
+  const basicPitch = getBasicPitch();
 
-  for (const pitch of rawPitches) {
-    if (pitch.freq === null) {
-      // Silence — close current note
-      if (currentNote) {
-        currentNote.endTime = pitch.time;
-        notes.push({
-          note: currentNote.note,
-          freq: currentNote.freq,
-          startTime: currentNote.startTime,
-          duration: currentNote.endTime - currentNote.startTime,
-          midiNumber: currentNote.midiNumber,
-        });
-        currentNote = null;
-      }
-      continue;
+  // Collect model output
+  const frames: number[][] = [];
+  const onsets: number[][] = [];
+  const contours: number[][] = [];
+
+  await basicPitch.evaluateModel(
+    audioBuffer,
+    (f: number[][], o: number[][], c: number[][]) => {
+      frames.push(...f);
+      onsets.push(...o);
+      contours.push(...c);
+    },
+    (percent: number) => {
+      onProgress?.(percent);
     }
+  );
 
-    const noteInfo = freqToNote(pitch.freq);
-    if (!noteInfo) {
-      if (currentNote) {
-        currentNote.endTime = pitch.time;
-        notes.push({
-          note: currentNote.note,
-          freq: currentNote.freq,
-          startTime: currentNote.startTime,
-          duration: currentNote.endTime - currentNote.startTime,
-          midiNumber: currentNote.midiNumber,
-        });
-        currentNote = null;
-      }
-      continue;
-    }
+  // Convert raw output to note events
+  // For humming: use lower thresholds to capture softer notes
+  const noteEvents = outputToNotesPoly(
+    frames,
+    onsets,
+    0.3, // onset threshold (lower = more sensitive)
+    0.2, // frame threshold (lower = more sensitive)
+    5, // min note length in frames
+    true, // infer onsets
+    null, // max freq (no limit)
+    null, // min freq (no limit)
+    true // melodia trick (helps with monophonic melodies like humming)
+  );
 
-    if (currentNote && currentNote.midiNumber === noteInfo.midiNumber) {
-      // Same note — extend
-      currentNote.endTime = pitch.time + hopSize / sampleRate;
-    } else {
-      // Different note — close previous, start new
-      if (currentNote) {
-        currentNote.endTime = pitch.time;
-        notes.push({
-          note: currentNote.note,
-          freq: currentNote.freq,
-          startTime: currentNote.startTime,
-          duration: currentNote.endTime - currentNote.startTime,
-          midiNumber: currentNote.midiNumber,
-        });
-      }
-      currentNote = {
-        note: noteInfo.note,
-        freq: pitch.freq,
-        midiNumber: noteInfo.midiNumber,
-        startTime: pitch.time,
-        endTime: pitch.time + hopSize / sampleRate,
+  // Add pitch bends and convert to timed events
+  const notesWithBends = addPitchBendsToNoteEvents(contours, noteEvents);
+  const timedNotes = noteFramesToTime(notesWithBends);
+
+  // Convert to our DetectedNote format and quantize to piano range
+  const detectedNotes: DetectedNote[] = timedNotes
+    .filter((n) => n.durationSeconds > 0.05) // filter very short noise notes
+    .map((n) => {
+      let midi = n.pitchMidi;
+      // Transpose to C4-B5 range (MIDI 60-83) if needed for piano visualization
+      while (midi < 60) midi += 12;
+      while (midi > 83) midi -= 12;
+
+      return {
+        note: midiToNoteName(midi),
+        freq: midiToHz(midi),
+        startTime: n.startTimeSeconds,
+        duration: n.durationSeconds,
+        midiNumber: midi,
+        amplitude: n.amplitude,
       };
-    }
-  }
-
-  // Close last note
-  if (currentNote) {
-    notes.push({
-      note: currentNote.note,
-      freq: currentNote.freq,
-      startTime: currentNote.startTime,
-      duration: currentNote.endTime - currentNote.startTime,
-      midiNumber: currentNote.midiNumber,
     });
-  }
 
-  // Filter out very short notes (noise)
-  const filtered = notes.filter((n) => n.duration >= minNoteDuration);
-
-  // Quantize to piano range (C4-B5 = MIDI 60-83)
-  // If notes are outside this range, transpose to fit
-  const quantized = filtered.map((n) => {
-    let midi = n.midiNumber;
-    // Transpose to C4-B5 range if needed
-    while (midi < 60) midi += 12;
-    while (midi > 83) midi -= 12;
-    const octave = Math.floor(midi / 12) - 1;
-    const noteIdx = midi % 12;
-    return {
-      ...n,
-      note: `${NOTE_NAMES[noteIdx]}${octave}`,
-      midiNumber: midi,
-    };
-  });
-
-  return quantized;
+  return detectedNotes;
 }
 
 /**
@@ -246,9 +168,11 @@ export function notesToMelodyDescription(notes: DetectedNote[]): string {
 
   const noteSeq = notes.map((n) => n.note);
   const uniqueNotes = Array.from(new Set(noteSeq));
-  const avgDuration = notes.reduce((sum, n) => sum + n.duration, 0) / notes.length;
+  const avgDuration =
+    notes.reduce((sum, n) => sum + n.duration, 0) / notes.length;
 
-  const tempoDesc = avgDuration < 0.2 ? "fast" : avgDuration < 0.4 ? "moderate" : "slow";
+  const tempoDesc =
+    avgDuration < 0.2 ? "fast" : avgDuration < 0.4 ? "moderate" : "slow";
   const complexityDesc =
     uniqueNotes.length <= 3
       ? "simple and repetitive"
@@ -257,18 +181,4 @@ export function notesToMelodyDescription(notes: DetectedNote[]): string {
         : "complex and varied";
 
   return `A piano melody with the note sequence: ${noteSeq.join(", ")}. The melody has a ${complexityDesc} pattern, played at a ${tempoDesc} tempo.`;
-}
-
-/**
- * Get the frequency for a given note name (e.g. "C4" -> 261.63)
- */
-export function noteToFreq(noteName: string): number {
-  const match = noteName.match(/^([A-G]#?)(\d)$/);
-  if (!match) return 440;
-  const [, name, octaveStr] = match;
-  const octave = parseInt(octaveStr);
-  const noteIdx = NOTE_NAMES.indexOf(name);
-  if (noteIdx === -1) return 440;
-  const midiNumber = (octave + 1) * 12 + noteIdx;
-  return 440 * Math.pow(2, (midiNumber - 69) / 12);
 }

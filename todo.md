@@ -88,3 +88,6 @@
 - [x] Feature: Replace FFmpeg waveform video with Gemini Veo AI scene video generation
 - [x] Feature: Update video generation UI to show AI-generated scene video
 - [x] Write Veo integration tests (API key, model availability, scene prompts)
+- [x] Feature: Add replay hum button so user can listen to their recording before conversion
+- [x] Research: Find the best voice/hum-to-notes API (replace pitchfinder) → Spotify Basic Pitch
+- [x] Integrate Spotify Basic Pitch ML model into the pipeline (replaced YIN algorithm)
