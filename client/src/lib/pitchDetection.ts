@@ -265,14 +265,14 @@ export async function analyzeHumToNotes(
     }
   );
 
-  // Step 1: Convert raw output to note events with HIGHER thresholds
-  // Higher thresholds = fewer but more confident notes
+  // Step 1: Convert raw output to note events
+  // Use moderate thresholds — let more notes through, then filter with our pipeline
   const noteEvents = outputToNotesPoly(
     frames,
     onsets,
-    0.5, // onset threshold — higher to only catch clear note starts
-    0.4, // frame threshold — higher to ignore weak harmonics
-    8, // min note length in frames — longer to skip noise blips
+    0.35, // onset threshold — moderate: catch real note starts without too much noise
+    0.3, // frame threshold — moderate: keep notes that have reasonable energy
+    5, // min note length in frames — allow shorter notes through
     true, // infer onsets
     null, // max freq
     null, // min freq
@@ -293,17 +293,20 @@ export async function analyzeHumToNotes(
       amplitude: n.amplitude,
     }));
 
-  // Step 2: Amplitude filtering — remove notes weaker than 25% of the strongest
-  rawNotes = filterByAmplitude(rawNotes, 0.25);
+  // Step 2: Amplitude filtering — remove notes weaker than 15% of the strongest
+  // Lowered from 25% to keep softer melody notes that are still clearly intentional
+  rawNotes = filterByAmplitude(rawNotes, 0.15);
 
   // Step 3: Skyline algorithm — at each time point, keep only the strongest note
   rawNotes = skylineExtract(rawNotes);
 
   // Step 4: Merge fragmented consecutive same-pitch notes
-  rawNotes = mergeConsecutiveNotes(rawNotes, 0.15, 1);
+  // Wider gap (0.25s) and tolerance (2 semitones) to stitch together humming variations
+  rawNotes = mergeConsecutiveNotes(rawNotes, 0.25, 2);
 
   // Step 5: Remove isolated short notes (noise blips)
-  rawNotes = removeIsolatedNotes(rawNotes, 0.1, 0.5);
+  // Only remove very short (<80ms) truly isolated notes
+  rawNotes = removeIsolatedNotes(rawNotes, 0.08, 0.6);
 
   // Convert to DetectedNote format and quantize to piano range
   const detectedNotes: DetectedNote[] = rawNotes.map((n) => {

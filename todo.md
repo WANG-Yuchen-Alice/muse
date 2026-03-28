@@ -92,3 +92,4 @@
 - [x] Research: Find the best voice/hum-to-notes API (replace pitchfinder) → Spotify Basic Pitch
 - [x] Integrate Spotify Basic Pitch ML model into the pipeline (replaced YIN algorithm)
 - [x] Fix: Basic Pitch detects too many notes (harmonics/noise) — extract main melody only
+- [x] Fix: Melody extraction too aggressive — missing some real notes, tune thresholds down
