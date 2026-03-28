@@ -342,24 +342,33 @@ export default function Results() {
     setLinkCopied(false);
   }, []);
 
-  const handleGenerateVideo = useCallback(async () => {
-    if (!videoStudioTrack || videoGenerating) return;
+  const videoStudioTrackRef = useRef<GeneratedTrack | null>(null);
+  videoStudioTrackRef.current = videoStudioTrack;
+
+  const handleGenerateVideo = async () => {
+    const track = videoStudioTrackRef.current;
+    console.log('[VideoStudio] handleGenerateVideo called, track:', track?.trackName, 'generating:', videoGenerating);
+    if (!track || videoGenerating) {
+      console.log('[VideoStudio] Guard hit — track:', !!track, 'generating:', videoGenerating);
+      return;
+    }
     setVideoGenerating(true);
     try {
       const result = await generateVideoMut.mutateAsync({
-        audioUrl: videoStudioTrack.audioUrl,
-        imageUrl: videoStudioTrack.imageUrl || undefined,
-        trackName: videoStudioTrack.trackName || videoStudioTrack.styleName,
-        styleId: videoStudioTrack.styleId,
-        color: videoStudioTrack.color,
+        audioUrl: track.audioUrl,
+        imageUrl: track.imageUrl || undefined,
+        trackName: track.trackName || track.styleName,
+        styleId: track.styleId,
+        color: track.color,
+        melodyDescription: melodyDescription || undefined,
       });
       setGeneratedVideoUrl(result.url);
     } catch (err) {
-      console.error("Video generation failed:", err);
+      console.error('[VideoStudio] Video generation failed:', err);
     } finally {
       setVideoGenerating(false);
     }
-  }, [videoStudioTrack, videoGenerating, generateVideoMut]);
+  };
 
   const handleDownloadVideo = useCallback(() => {
     if (!generatedVideoUrl || !videoStudioTrack) return;
@@ -652,25 +661,31 @@ export default function Results() {
 
               {/* Generate button */}
               <Button
-                onClick={handleGenerateVideo}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[VideoStudio] Button clicked!');
+                  handleGenerateVideo();
+                }}
                 disabled={videoGenerating}
-                className="w-full gap-2 gradient-cosmic text-background font-semibold h-11 rounded-full border-0 hover:opacity-90 transition-all"
+                className="w-full gap-2 gradient-cosmic text-white font-semibold h-11 rounded-full border-0 hover:opacity-90 transition-all relative z-50"
               >
                 {videoGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Rendering Video...
+                    Generating AI Scene... (1-3 min)
                   </>
                 ) : (
                   <>
                     <Film className="w-4 h-4" />
-                    Generate Music Video
+                    Generate AI Music Video
                   </>
                 )}
               </Button>
 
               <p className="text-[10px] text-muted-foreground text-center">
-                Audio-reactive visualization with dynamic spectrum overlay
+                AI-generated cinematic scene video powered by Veo
               </p>
             </div>
           )}

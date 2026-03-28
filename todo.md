@@ -79,4 +79,12 @@
 - [x] Route restructure: / = Landing page, /create = Home (creation tool)
 - [x] Updated all internal navigation links from / to /create
 - [x] Research Gemini Veo 3.1 API: supports 9:16 portrait, 8s videos, text-to-video, native audio, @google/genai SDK
-- [ ] Push all changes to GitHub
+- [x] Push all changes to GitHub (via checkpoint sync)
+- [ ] Bug: Generate Video button still not responding (deep investigation needed)
+- [x] Feature: Hum-to-Piano-Keys conversion — detect pitch from hum audio, map to piano keys
+- [x] Feature: Dev debug UI showing hum → identified piano keys for accuracy verification
+- [x] Wire converted piano keys into music generation pipeline (use keyboard input path)
+- [x] Feature: Hum-to-Piano-Keys playback UI for verifying conversion accuracy
+- [x] Feature: Replace FFmpeg waveform video with Gemini Veo AI scene video generation
+- [x] Feature: Update video generation UI to show AI-generated scene video
+- [x] Write Veo integration tests (API key, model availability, scene prompts)

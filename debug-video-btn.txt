@@ -1,0 +1,29 @@
+Screen recording analysis:
+- All 7 frames (7 seconds) show the SAME state: Dialog open, "Generate Music Video" button visible
+- The button NEVER transitions to "Rendering Video..." loading state
+- User clicks the button multiple times but nothing happens
+- The onClick handler (handleGenerateVideo) is not firing at all
+
+The button code:
+```
+<Button
+  onClick={handleGenerateVideo}
+  disabled={videoGenerating}
+  className="w-full gap-2 gradient-cosmic text-background font-semibold h-11 rounded-full border-0 hover:opacity-90 transition-all"
+>
+```
+
+handleGenerateVideo has this guard:
+```
+if (!videoStudioTrack || videoGenerating) return;
+```
+
+Since the Dialog IS open and showing the track info, videoStudioTrack should NOT be null.
+videoGenerating should be false since the button shows "Generate Music Video" not "Rendering Video..."
+
+POSSIBLE ROOT CAUSE: The `gradient-cosmic` class might have `pointer-events: none` or there's an invisible overlay.
+Or the `text-background` class combined with gradient might cause the button to not be interactive.
+
+Need to check: 
+1. What does gradient-cosmic class look like in index.css?
+2. Is there a DialogContent overlay intercepting clicks?

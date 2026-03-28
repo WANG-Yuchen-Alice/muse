@@ -1,6 +1,8 @@
 /**
  * Muse — Input Page
  * Record a hum or play a 2-octave piano keyboard, then generate music.
+ * Hum mode: record → verify piano keys → choose style → generate
+ * Piano mode: play → choose style → generate
  * Includes "My Music Vault" section showing recent sessions.
  */
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -9,6 +11,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Square, Piano, Wand2, Trash2, Music, Play, Pause, ChevronRight, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import HumToKeys from "@/components/HumToKeys";
+import { notesToMelodyDescription, type DetectedNote } from "@/lib/pitchDetection";
 
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
@@ -55,6 +59,9 @@ function freqToNoteName(freq: number): string {
 }
 
 type InputMode = "hum" | "piano";
+
+// Hum flow stages: "record" → "verify" → "ready"
+type HumStage = "record" | "verify" | "ready";
 
 function detectPitch(buffer: Float32Array, sampleRate: number): number | null {
   const SIZE = buffer.length;
@@ -121,6 +128,13 @@ export default function Home() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Hum flow: multi-stage
+  const [humStage, setHumStage] = useState<HumStage>("record");
+  const [humAudioBlob, setHumAudioBlob] = useState<Blob | null>(null); // raw hum recording
+  const [pianoAudioBlob, setPianoAudioBlob] = useState<Blob | null>(null); // converted piano audio
+  const [confirmedNotes, setConfirmedNotes] = useState<DetectedNote[]>([]);
+  const [melodyDescription, setMelodyDescription] = useState("");
+
   const [detectedNotes, setDetectedNotes] = useState<string[]>([]);
   const [playedNotes, setPlayedNotes] = useState<{ note: string; time: number }[]>([]);
 
@@ -185,8 +199,9 @@ export default function Home() {
       };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setAudioBlob(blob);
-        setHasRecording(true);
+        setHumAudioBlob(blob);
+        // Move to verify stage
+        setHumStage("verify");
         stream.getTracks().forEach((tr) => tr.stop());
         if (pitchIntervalRef.current) clearInterval(pitchIntervalRef.current);
       };
@@ -236,6 +251,31 @@ export default function Home() {
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
     if (pitchIntervalRef.current) clearInterval(pitchIntervalRef.current);
+  }, []);
+
+  // ---- HumToKeys Confirm Callback ----
+  // When user confirms the piano keys from hum detection
+  const handleHumConfirm = useCallback((notes: DetectedNote[], pianoBlob: Blob) => {
+    setConfirmedNotes(notes);
+    setPianoAudioBlob(pianoBlob);
+    setAudioBlob(pianoBlob); // Use the piano audio for generation
+    setHasRecording(true);
+    setHumStage("ready");
+    // Generate melody description from confirmed notes
+    setMelodyDescription(notesToMelodyDescription(notes));
+  }, []);
+
+  // ---- HumToKeys Re-record Callback ----
+  const handleHumRerecord = useCallback(() => {
+    setHumAudioBlob(null);
+    setPianoAudioBlob(null);
+    setConfirmedNotes([]);
+    setMelodyDescription("");
+    setHumStage("record");
+    setHasRecording(false);
+    setAudioBlob(null);
+    setDetectedNotes([]);
+    setRecordingTime(0);
   }, []);
 
   // ---- Piano Playback ----
@@ -313,6 +353,12 @@ export default function Home() {
     setPianoRecordTime(0);
     setDetectedNotes([]);
     setPlayedNotes([]);
+    // Reset hum flow
+    setHumStage("record");
+    setHumAudioBlob(null);
+    setPianoAudioBlob(null);
+    setConfirmedNotes([]);
+    setMelodyDescription("");
   }, []);
 
   // ---- Upload audio + navigate to results ----
@@ -330,11 +376,9 @@ export default function Home() {
       });
 
       let melodyDesc = "";
-      if (mode === "hum" && detectedNotes.length > 0) {
-        const uniqueSeq = detectedNotes.filter((n, i) => i === 0 || n !== detectedNotes[i - 1]);
-        melodyDesc = `A hummed melody with the note sequence: ${uniqueSeq.join(", ")}. The melody has a ${
-          uniqueSeq.length <= 4 ? "simple and repetitive" : uniqueSeq.length <= 8 ? "moderate" : "complex and varied"
-        } pattern.`;
+      if (mode === "hum") {
+        // Use the melody description from confirmed piano keys
+        melodyDesc = melodyDescription;
       } else if (mode === "piano" && playedNotes.length > 0) {
         const noteSeq = playedNotes.map((n) => n.note);
         melodyDesc = `A piano melody with the note sequence: ${noteSeq.join(", ")}. The melody has a ${
@@ -343,8 +387,10 @@ export default function Home() {
       }
 
       const stylesParam = selectedStyles.join(",");
+      // For hum mode, pass mode=piano since we've converted to piano keys
+      const effectiveMode = mode === "hum" ? "piano" : mode;
       navigate(
-        `/results?audio=${encodeURIComponent(audioUrl)}&melody=${encodeURIComponent(melodyDesc)}&styles=${encodeURIComponent(stylesParam)}`
+        `/results?audio=${encodeURIComponent(audioUrl)}&melody=${encodeURIComponent(melodyDesc)}&styles=${encodeURIComponent(stylesParam)}&mode=${effectiveMode}`
       );
     } catch (err) {
       console.error("Upload failed:", err);
@@ -352,7 +398,7 @@ export default function Home() {
     } finally {
       setIsUploading(false);
     }
-  }, [audioBlob, uploadAudio, mode, detectedNotes, playedNotes, navigate]);
+  }, [audioBlob, uploadAudio, mode, melodyDescription, playedNotes, navigate, selectedStyles]);
 
   useEffect(() => {
     return () => {
@@ -388,6 +434,11 @@ export default function Home() {
   const currentNotes = mode === "hum" ? detectedNotes : playedNotes.map((n) => n.note);
 
   const recentSessions = galleryData?.sessions ?? [];
+
+  // For hum mode, determine if we should show style selection + generate
+  const humReady = mode === "hum" && humStage === "ready" && hasRecording;
+  const pianoReady = mode === "piano" && hasRecording;
+  const showStyleAndGenerate = humReady || pianoReady;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -464,59 +515,125 @@ export default function Home() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="flex flex-col items-center gap-6 w-full max-w-md"
+              className="flex flex-col items-center gap-6 w-full"
             >
-              <div className="relative w-40 h-40 flex items-center justify-center">
-                {isRecording && (
-                  <>
-                    <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-primary/30 pointer-events-none"
-                      animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    />
-                    <motion.div
-                      className="absolute inset-2 rounded-full border-2 border-primary/20 pointer-events-none"
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0, 0.3] }}
-                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                    />
-                  </>
-                )}
-                <button
-                  onClick={isRecording ? stopRecording : hasRecording ? undefined : startRecording}
-                  disabled={hasRecording && !isRecording}
-                  className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    isRecording
-                      ? "bg-red-500/20 border-2 border-red-500 glow-magenta"
-                      : hasRecording
-                        ? "bg-green-500/20 border-2 border-green-500/50"
-                        : "bg-primary/10 border-2 border-primary/50 hover:bg-primary/20 hover:border-primary"
-                  }`}
-                >
-                  {isRecording ? (
-                    <Square className="w-8 h-8 text-red-400" />
-                  ) : hasRecording ? (
-                    <Mic className="w-8 h-8 text-green-400" />
-                  ) : (
-                    <Mic className="w-8 h-8 text-primary" />
+              {/* Stage 1: Record */}
+              {humStage === "record" && (
+                <div className="flex flex-col items-center gap-6 w-full max-w-md">
+                  <div className="relative w-40 h-40 flex items-center justify-center">
+                    {isRecording && (
+                      <>
+                        <motion.div
+                          className="absolute inset-0 rounded-full border-2 border-primary/30 pointer-events-none"
+                          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        />
+                        <motion.div
+                          className="absolute inset-2 rounded-full border-2 border-primary/20 pointer-events-none"
+                          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0, 0.3] }}
+                          transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
+                        />
+                      </>
+                    )}
+                    <button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                        isRecording
+                          ? "bg-red-500/20 border-2 border-red-500 glow-magenta"
+                          : "bg-primary/10 border-2 border-primary/50 hover:bg-primary/20 hover:border-primary"
+                      }`}
+                    >
+                      {isRecording ? (
+                        <Square className="w-8 h-8 text-red-400" />
+                      ) : (
+                        <Mic className="w-8 h-8 text-primary" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="font-mono text-2xl text-foreground">
+                      {recordingTime.toFixed(1)}s
+                    </span>
+                    <span className="text-muted-foreground text-sm ml-2">/ 10s</span>
+                  </div>
+
+                  {!isRecording && (
+                    <p className="text-muted-foreground text-sm">Tap to start recording your hum</p>
                   )}
-                </button>
-              </div>
+                  {isRecording && (
+                    <p className="text-red-400/80 text-sm animate-pulse">Recording... tap the button to stop</p>
+                  )}
 
-              <div className="text-center">
-                <span className="font-mono text-2xl text-foreground">
-                  {recordingTime.toFixed(1)}s
-                </span>
-                <span className="text-muted-foreground text-sm ml-2">/ 10s</span>
-              </div>
+                  {/* Real-time detected notes during recording */}
+                  {detectedNotes.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="glass-panel rounded-xl px-4 py-3 max-w-md w-full"
+                    >
+                      <p className="text-xs text-muted-foreground mb-1">Detected melody:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {detectedNotes.slice(-20).map((note, i) => (
+                          <span
+                            key={i}
+                            className="text-xs font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+                          >
+                            {note}
+                          </span>
+                        ))}
+                        {detectedNotes.length > 20 && (
+                          <span className="text-xs text-muted-foreground">
+                            +{detectedNotes.length - 20} more
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              )}
 
-              {!hasRecording && !isRecording && (
-                <p className="text-muted-foreground text-sm">Tap to start recording your hum</p>
+              {/* Stage 2: Verify piano keys */}
+              {humStage === "verify" && humAudioBlob && (
+                <HumToKeys
+                  audioBlob={humAudioBlob}
+                  onConfirm={handleHumConfirm}
+                  onRerecord={handleHumRerecord}
+                />
               )}
-              {isRecording && (
-                <p className="text-red-400/80 text-sm animate-pulse">Recording... tap the button to stop</p>
-              )}
-              {hasRecording && !isRecording && (
-                <p className="text-green-400 text-sm">Recording captured! Ready to generate.</p>
+
+              {/* Stage 3: Ready — show confirmed notes summary */}
+              {humStage === "ready" && confirmedNotes.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-panel rounded-xl px-4 py-3 max-w-md w-full"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-green-400 font-medium">Piano keys confirmed</p>
+                    <button
+                      onClick={handleHumRerecord}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Re-record
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {confirmedNotes.slice(0, 20).map((note, i) => (
+                      <span
+                        key={i}
+                        className="text-xs font-mono px-2 py-0.5 rounded-full bg-green-500/10 text-green-400"
+                      >
+                        {note.note}
+                      </span>
+                    ))}
+                    {confirmedNotes.length > 20 && (
+                      <span className="text-xs text-muted-foreground">
+                        +{confirmedNotes.length - 20} more
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
               )}
             </motion.div>
           ) : (
@@ -589,38 +706,38 @@ export default function Home() {
                   Hit "Start Recording" then play some notes on the keyboard
                 </p>
               )}
+
+              {/* Piano detected notes display */}
+              {playedNotes.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="glass-panel rounded-xl px-4 py-3 max-w-md w-full"
+                >
+                  <p className="text-xs text-muted-foreground mb-1">Played notes:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {playedNotes.slice(-20).map((note, i) => (
+                      <span
+                        key={i}
+                        className="text-xs font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+                      >
+                        {note.note}
+                      </span>
+                    ))}
+                    {playedNotes.length > 20 && (
+                      <span className="text-xs text-muted-foreground">
+                        +{playedNotes.length - 20} more
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Detected notes display */}
-        {currentNotes.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="glass-panel rounded-xl px-4 py-3 max-w-md w-full"
-          >
-            <p className="text-xs text-muted-foreground mb-1">Detected melody:</p>
-            <div className="flex flex-wrap gap-1">
-              {currentNotes.slice(-20).map((note, i) => (
-                <span
-                  key={i}
-                  className="text-xs font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary"
-                >
-                  {note}
-                </span>
-              ))}
-              {currentNotes.length > 20 && (
-                <span className="text-xs text-muted-foreground">
-                  +{currentNotes.length - 20} more
-                </span>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Style Selection */}
-        {hasRecording && (
+        {/* Style Selection — shown when recording is ready */}
+        {showStyleAndGenerate && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -658,7 +775,7 @@ export default function Home() {
 
         {/* Action buttons */}
         <div className="flex gap-3">
-          {hasRecording && (
+          {showStyleAndGenerate && (
             <>
               <Button variant="outline" onClick={clearRecording} className="gap-2">
                 <Trash2 className="w-4 h-4" />

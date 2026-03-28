@@ -235,123 +235,129 @@ async function convertToMp3(audioUrl: string): Promise<Buffer> {
 }
 
 // ============================================================
-// Audio-reactive music video — 9:16 vertical, FFmpeg
+// AI Scene Video Generation — Gemini Veo 3.1
+// Generates a real AI scene video based on music style and mood
 // ============================================================
-async function createMusicVideo(
-  audioUrl: string,
-  imageUrl: string,
+
+// Video scene prompts per style — open-world, cinematic scenes
+const VIDEO_SCENE_PROMPTS: Record<string, string> = {
+  lofi: "A cozy rainy evening seen through a rain-streaked window. Warm amber light from a desk lamp illuminates a small room with books and a steaming cup of coffee. Raindrops slowly trickle down the glass. The camera slowly pans across the scene. Soft, dreamy, nostalgic atmosphere. Lo-fi aesthetic.",
+  cinematic: "A breathtaking aerial shot sweeping over vast mountain ranges at golden hour. Dramatic clouds part to reveal god rays streaming down onto a pristine lake below. The camera soars forward through the landscape. Epic, majestic, awe-inspiring. IMAX quality cinematography.",
+  jazz: "A dimly lit jazz club at night. A single warm spotlight illuminates an empty stage with a saxophone on its stand. Smoke curls lazily through the amber light. The camera slowly dollies forward through velvet curtains. Intimate, sophisticated, film noir aesthetic.",
+  electronic: "A futuristic neon-lit cityscape at night. Holographic displays flicker on wet streets reflecting electric blue and purple lights. The camera glides through the cyberpunk streets. Aurora borealis shimmers above the skyscrapers. Synthwave aesthetic, ultra-detailed.",
+  tiktok: "A vibrant, energetic scene with colorful confetti and sparkles falling through neon-lit air. Dynamic camera movement through a kaleidoscope of bold pinks, reds, and electric blues. Fast-paced, trendy, social media aesthetic with motion blur effects.",
+  upbeat: "A bright sunny beach at golden hour. Palm trees sway gently in the breeze. Crystal clear turquoise waves lap at the shore. The camera tracks along the waterline. Warm, joyful, summer festival vibes. Vivid colors, carefree atmosphere.",
+  rock: "A dramatic concert stage engulfed in smoke and powerful spotlights. Red and white beams cut through the haze. The camera pushes through the fog toward the stage. Electric energy, raw power. Concert photography style with lens flares.",
+  rnb: "A luxurious penthouse at night with floor-to-ceiling windows overlooking a glittering city skyline. Soft purple ambient lighting, candles flickering. The camera slowly pans across the intimate scene. Rose petals drift through the air. Romantic, sensual atmosphere.",
+  classical: "A grand concert hall with ornate golden ceiling and crystal chandeliers. A Steinway grand piano sits center stage under a single warm spotlight. The camera slowly orbits the piano. Baroque architecture, elegant and timeless. Warm amber and cream tones.",
+  edm: "A massive outdoor music festival at night. Hundreds of laser beams cut through fog in every direction. Giant LED screens pulse with geometric patterns. The camera flies over a sea of silhouettes with raised hands. Euphoric energy, vivid neon colors.",
+};
+
+async function generateVideoPrompt(
+  styleId: string,
+  styleName: string,
+  trackName: string,
+  melodyDesc?: string
+): Promise<string> {
+  // Use the pre-defined scene prompt as a base, optionally enhanced by LLM
+  const basePrompt = VIDEO_SCENE_PROMPTS[styleId] ?? VIDEO_SCENE_PROMPTS.lofi;
+  
+  try {
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `You are a creative video director. Given a base scene description and a music track context, enhance the scene description to be more vivid and specific. Keep it under 200 words. Output ONLY the enhanced scene description, nothing else. The video should feel like a real cinematic scene, not a music visualizer. Make it feel like an open-world exploration or a cinematic short film.`,
+        },
+        {
+          role: "user",
+          content: `Base scene: ${basePrompt}\n\nMusic context: Track "${trackName}" in ${styleName} style.${melodyDesc ? ` Melody: ${melodyDesc}` : ""}\n\nEnhance this scene description for AI video generation. Make it cinematic and immersive.`,
+        },
+      ],
+    });
+    const raw = response.choices?.[0]?.message?.content;
+    const enhanced = typeof raw === "string" ? raw.trim() : "";
+    return enhanced.length > 20 ? enhanced : basePrompt;
+  } catch {
+    return basePrompt;
+  }
+}
+
+async function generateAISceneVideo(
   trackName: string,
   styleId: string,
-  color: string
-): Promise<Buffer> {
-  const [audioResp, imageResp] = await Promise.all([
-    axios.get(audioUrl, { responseType: "arraybuffer" }),
-    imageUrl ? axios.get(imageUrl, { responseType: "arraybuffer" }) : null,
-  ]);
+  styleName: string,
+  melodyDesc?: string
+): Promise<string> {
+  // Step 1: Generate an enhanced video prompt
+  const videoPrompt = await generateVideoPrompt(styleId, styleName, trackName, melodyDesc);
+  console.log(`[Veo] Generating video for "${trackName}" (${styleName}):`, videoPrompt.slice(0, 100) + "...");
 
-  const id = nanoid();
-  const audioPath = path.join(tmpdir(), `muse-va-${id}.tmp`);
-  const bgImagePath = path.join(tmpdir(), `muse-vbg-${id}.png`);
-  const outputPath = path.join(tmpdir(), `muse-mv-${id}.mp4`);
+  // Step 2: Call Veo 3.1 to generate the video
+  let operation = await genai.models.generateVideos({
+    model: "veo-3.1-generate-preview",
+    prompt: videoPrompt,
+    config: {
+      aspectRatio: "9:16",
+      numberOfVideos: 1,
+      personGeneration: "dont_allow",
+      generateAudio: false, // We have our own music
+    },
+  });
 
-  // Parse hex color to RGB for FFmpeg
-  const hexToRgb = (hex: string) => {
-    const h = hex.replace("#", "");
-    return {
-      r: parseInt(h.substring(0, 2), 16),
-      g: parseInt(h.substring(2, 4), 16),
-      b: parseInt(h.substring(4, 6), 16),
-    };
-  };
-  const rgb = hexToRgb(color || "#A78BFA");
-
-  // Sanitize track name for FFmpeg drawtext (escape special chars)
-  const safeTrackName = (trackName || "Untitled")
-    .replace(/'/g, "'\\\''")
-    .replace(/:/g, "\\:")
-    .replace(/%/g, "%%");
-
-  try {
-    await writeFile(audioPath, Buffer.from(audioResp.data));
-
-    const filterParts: string[] = [];
-    const hasImage = !!imageResp;
-
-    // Audio input is always index 0
-    // When image exists: image is index 1 (via -loop 1 -i imagePath)
-    // When no image: color source is index 1 (via -f lavfi -i color=...)
-    if (hasImage) {
-      await writeFile(bgImagePath, Buffer.from(imageResp.data));
-      // Scale background image to 1080x1920 (9:16) with crop
-      filterParts.push(
-        `[1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`
-      );
-    } else {
-      // Color source is input 1 (added as -f lavfi -i in ffmpegArgs)
-      filterParts.push(
-        `[1:v]scale=1080:1920,setsar=1[bg]`
-      );
-    }
-
-    // Audio visualization: showwaves with custom colors, positioned at bottom
-    filterParts.push(
-      `[0:a]showwaves=s=1080x300:mode=cline:rate=30:colors=${color}@0.8|${color}@0.4:scale=sqrt[waves]`
-    );
-
-    // Overlay waves on background at the bottom area
-    filterParts.push(
-      `[bg][waves]overlay=0:1520:shortest=1[withwaves]`
-    );
-
-    // Add a semi-transparent gradient bar at the bottom for text readability
-    filterParts.push(
-      `[withwaves]drawbox=x=0:y=1680:w=1080:h=240:color=black@0.5:t=fill[withbar]`
-    );
-
-    // Add track name text
-    filterParts.push(
-      `[withbar]drawtext=text='${safeTrackName}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=1740:font=Arial:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf[withname]`
-    );
-
-    // Add "Created with Muse" branding
-    filterParts.push(
-      `[withname]drawtext=text='Created with Muse':fontsize=28:fontcolor=white@0.5:x=(w-text_w)/2:y=1820:font=Arial:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf[final]`
-    );
-
-    // Build input args: audio first, then image or color source
-    const inputArgs: string[] = ["-y", "-i", audioPath];
-    if (hasImage) {
-      inputArgs.push("-loop", "1", "-i", bgImagePath);
-    } else {
-      // Use lavfi color source as a proper input
-      inputArgs.push("-f", "lavfi", "-i", `color=c=black:s=1080x1920:d=60`);
-    }
-
-    const ffmpegArgs = [
-      ...inputArgs,
-      "-filter_complex", filterParts.join(";"),
-      "-map", "[final]",
-      "-map", "0:a",
-      "-c:v", "libx264",
-      "-preset", "fast",
-      "-crf", "23",
-      "-c:a", "aac",
-      "-b:a", "192k",
-      "-pix_fmt", "yuv420p",
-      "-shortest",
-      "-movflags", "+faststart",
-      "-t", "30",
-      outputPath,
-    ];
-
-    await execFileAsync("ffmpeg", ffmpegArgs, { timeout: 120000 });
-    const mp4Buffer = await readFile(outputPath);
-    return mp4Buffer;
-  } finally {
-    await unlink(audioPath).catch(() => {});
-    await unlink(bgImagePath).catch(() => {});
-    await unlink(outputPath).catch(() => {});
+  // Step 3: Poll until done (max ~5 minutes)
+  const maxPolls = 60;
+  for (let i = 0; i < maxPolls; i++) {
+    if (operation.done) break;
+    console.log(`[Veo] Polling... attempt ${i + 1}/${maxPolls}`);
+    await new Promise((r) => setTimeout(r, 5000));
+    operation = await genai.operations.getVideosOperation({ operation });
   }
+
+  if (!operation.done) {
+    throw new Error("Veo video generation timed out after 5 minutes");
+  }
+
+  if (operation.error) {
+    throw new Error(`Veo generation failed: ${JSON.stringify(operation.error)}`);
+  }
+
+  const generatedVideos = operation.response?.generatedVideos;
+  if (!generatedVideos || generatedVideos.length === 0) {
+    throw new Error("Veo did not return any generated videos");
+  }
+
+  const video = generatedVideos[0].video;
+  if (!video) {
+    throw new Error("Veo generated video has no video data");
+  }
+
+  // Step 4: Download the video
+  // The video may have a URI we can fetch, or videoBytes as base64
+  let videoBuffer: Buffer;
+  if (video.videoBytes) {
+    videoBuffer = Buffer.from(video.videoBytes, "base64");
+  } else if (video.uri) {
+    // Download from the URI
+    const downloadPath = path.join(tmpdir(), `muse-veo-${nanoid()}.mp4`);
+    try {
+      await genai.files.download({
+        file: generatedVideos[0].video!,
+        downloadPath,
+      });
+      videoBuffer = await readFile(downloadPath);
+    } finally {
+      await unlink(downloadPath).catch(() => {});
+    }
+  } else {
+    throw new Error("Veo video has neither videoBytes nor URI");
+  }
+
+  // Step 5: Upload to S3
+  const key = `videos/veo-${nanoid()}.mp4`;
+  const { url } = await storagePut(key, videoBuffer, "video/mp4");
+  console.log(`[Veo] Video uploaded: ${url}`);
+  return url;
 }
 
 async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<Buffer> {
@@ -699,7 +705,7 @@ export const appRouter = router({
         return { url, filename: `${(input.trackName ?? "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4` };
       }),
 
-    /** Generate a 9:16 music video with audio-reactive visualization */
+    /** Generate a 9:16 AI scene video using Gemini Veo */
     generateVideo: publicProcedure
       .input(z.object({
         audioUrl: z.string(),
@@ -707,29 +713,27 @@ export const appRouter = router({
         trackName: z.string().optional(),
         styleId: z.string(),
         color: z.string().optional(),
+        melodyDescription: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const style = STYLES.find((s) => s.id === input.styleId);
-        const color = input.color || style?.color || "#A78BFA";
         const trackName = input.trackName || "Untitled";
+        const styleName = style?.name || input.styleId;
 
-        const mp4Buffer = await createMusicVideo(
-          input.audioUrl,
-          input.imageUrl ?? "",
+        // Generate AI scene video with Veo
+        const videoUrl = await generateAISceneVideo(
           trackName,
           input.styleId,
-          color
+          styleName,
+          input.melodyDescription,
         );
-
-        const key = `videos/${nanoid()}.mp4`;
-        const { url } = await storagePut(key, mp4Buffer, "video/mp4");
 
         // Update track videoUrl in DB if we can find the track
         try {
           const db = await getDb();
           if (db && input.audioUrl) {
             await db.update(tracks)
-              .set({ videoUrl: url })
+              .set({ videoUrl })
               .where(eq(tracks.audioUrl, input.audioUrl));
           }
         } catch (err) {
@@ -737,7 +741,7 @@ export const appRouter = router({
         }
 
         return {
-          url,
+          url: videoUrl,
           filename: `${trackName.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4`,
         };
       }),
