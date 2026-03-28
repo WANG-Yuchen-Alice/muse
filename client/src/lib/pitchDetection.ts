@@ -1,13 +1,13 @@
 /**
- * Pitch Detection — Using Spotify's Basic Pitch ML model
+ * Pitch Detection — Using Spotify's Basic Pitch ML model + Melody Extraction
  *
- * Converts hummed audio to musical note events using a lightweight neural network.
- * Much more accurate than traditional DSP-based pitch detection (YIN, autocorrelation).
+ * Pipeline:
+ * 1. Basic Pitch ML model detects all note events (polyphonic)
+ * 2. Skyline algorithm extracts the main melody (keeps strongest note at each time)
+ * 3. Amplitude filtering removes weak harmonics/noise
+ * 4. Temporal smoothing merges fragmented notes and removes isolated blips
  *
- * Basic Pitch outputs NoteEventTime objects with:
- *   - startTimeSeconds, durationSeconds, pitchMidi, amplitude, pitchBends
- *
- * We convert pitchMidi → note name (e.g. "C4", "F#5") for our UI.
+ * Result: a clean monophonic melody from a hummed recording.
  */
 
 import {
@@ -77,21 +77,166 @@ let cachedBasicPitch: BasicPitch | null = null;
 function getBasicPitch(): BasicPitch {
   if (!cachedBasicPitch) {
     // Model files are copied to public/models/ for reliable browser loading
-    // TensorFlow.js loadGraphModel will fetch model.json and its weight shard
     cachedBasicPitch = new BasicPitch("/models/model.json");
   }
   return cachedBasicPitch;
 }
 
+// ─── Melody Extraction Algorithms ───────────────────────────────────────────
+
+interface RawNote {
+  startTime: number;
+  duration: number;
+  pitchMidi: number;
+  amplitude: number;
+}
+
+/**
+ * Skyline Algorithm — Classic melody extraction.
+ * At each point in time, keep only the note with the highest amplitude.
+ * For humming, the fundamental is typically the loudest, while harmonics are weaker.
+ *
+ * We use amplitude (not pitch) as the primary selector because humming
+ * produces a strong fundamental with weaker overtones.
+ */
+function skylineExtract(notes: RawNote[]): RawNote[] {
+  if (notes.length <= 1) return notes;
+
+  // Sort by start time
+  const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
+
+  // Build a timeline: for each time slot, find overlapping notes and keep the strongest
+  const result: RawNote[] = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (used.has(i)) continue;
+
+    const note = sorted[i];
+    const noteEnd = note.startTime + note.duration;
+
+    // Find all notes overlapping with this one
+    let bestIdx = i;
+    let bestAmplitude = note.amplitude;
+
+    for (let j = 0; j < sorted.length; j++) {
+      if (i === j || used.has(j)) continue;
+      const other = sorted[j];
+      const otherEnd = other.startTime + other.duration;
+
+      // Check overlap: two intervals overlap if start1 < end2 && start2 < end1
+      const overlapStart = Math.max(note.startTime, other.startTime);
+      const overlapEnd = Math.min(noteEnd, otherEnd);
+
+      if (overlapStart < overlapEnd) {
+        // They overlap — keep the one with higher amplitude
+        if (other.amplitude > bestAmplitude) {
+          bestAmplitude = other.amplitude;
+          bestIdx = j;
+        }
+        used.add(j); // mark the loser as used
+      }
+    }
+
+    used.add(i);
+    result.push(sorted[bestIdx]);
+  }
+
+  return result.sort((a, b) => a.startTime - b.startTime);
+}
+
+/**
+ * Amplitude-based filtering.
+ * Remove notes whose amplitude is below a threshold relative to the max amplitude.
+ * This removes weak harmonics and noise.
+ */
+function filterByAmplitude(
+  notes: RawNote[],
+  relativeThreshold: number = 0.25
+): RawNote[] {
+  if (notes.length === 0) return notes;
+  const maxAmp = Math.max(...notes.map((n) => n.amplitude));
+  const threshold = maxAmp * relativeThreshold;
+  return notes.filter((n) => n.amplitude >= threshold);
+}
+
+/**
+ * Merge consecutive notes that are the same pitch (within tolerance).
+ * Humming often produces fragmented detections of the same note.
+ */
+function mergeConsecutiveNotes(
+  notes: RawNote[],
+  maxGap: number = 0.15, // max gap in seconds to merge
+  semitoneTolerance: number = 1 // merge notes within this many semitones
+): RawNote[] {
+  if (notes.length <= 1) return notes;
+
+  const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
+  const merged: RawNote[] = [{ ...sorted[0] }];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = sorted[i];
+    const prevEnd = prev.startTime + prev.duration;
+    const gap = curr.startTime - prevEnd;
+    const pitchDiff = Math.abs(curr.pitchMidi - prev.pitchMidi);
+
+    if (gap <= maxGap && pitchDiff <= semitoneTolerance) {
+      // Merge: extend previous note to cover current
+      const newEnd = Math.max(prevEnd, curr.startTime + curr.duration);
+      prev.duration = newEnd - prev.startTime;
+      // Keep the higher amplitude
+      prev.amplitude = Math.max(prev.amplitude, curr.amplitude);
+    } else {
+      merged.push({ ...curr });
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Remove isolated short notes that are likely noise.
+ * A note is "isolated" if it has no nearby neighbors (within gapThreshold).
+ */
+function removeIsolatedNotes(
+  notes: RawNote[],
+  minDuration: number = 0.1,
+  gapThreshold: number = 0.5
+): RawNote[] {
+  if (notes.length <= 2) return notes;
+
+  const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
+
+  return sorted.filter((note, i) => {
+    // Keep notes that are long enough
+    if (note.duration >= minDuration) return true;
+
+    // Check if there's a neighbor within gapThreshold
+    const prevEnd =
+      i > 0 ? sorted[i - 1].startTime + sorted[i - 1].duration : -Infinity;
+    const nextStart =
+      i < sorted.length - 1 ? sorted[i + 1].startTime : Infinity;
+
+    const gapBefore = note.startTime - prevEnd;
+    const gapAfter = nextStart - (note.startTime + note.duration);
+
+    // If both gaps are large, this note is isolated → remove it
+    return !(gapBefore > gapThreshold && gapAfter > gapThreshold);
+  });
+}
+
+// ─── Main Analysis Function ─────────────────────────────────────────────────
+
 /**
  * Analyze a hummed audio blob and return detected musical notes
- * using Spotify's Basic Pitch ML model.
+ * using Spotify's Basic Pitch ML model + melody extraction pipeline.
  */
 export async function analyzeHumToNotes(
   audioBlob: Blob,
   onProgress?: (percent: number) => void
 ): Promise<DetectedNote[]> {
-  // Decode audio with browser's AudioContext
+  // Decode audio with browser's AudioContext at 22050 Hz (Basic Pitch requirement)
   const arrayBuffer = await audioBlob.arrayBuffer();
   const tempCtx = new AudioContext({ sampleRate: 22050 });
   let audioBuffer: AudioBuffer;
@@ -120,42 +265,62 @@ export async function analyzeHumToNotes(
     }
   );
 
-  // Convert raw output to note events
-  // For humming: use lower thresholds to capture softer notes
+  // Step 1: Convert raw output to note events with HIGHER thresholds
+  // Higher thresholds = fewer but more confident notes
   const noteEvents = outputToNotesPoly(
     frames,
     onsets,
-    0.3, // onset threshold (lower = more sensitive)
-    0.2, // frame threshold (lower = more sensitive)
-    5, // min note length in frames
+    0.5, // onset threshold — higher to only catch clear note starts
+    0.4, // frame threshold — higher to ignore weak harmonics
+    8, // min note length in frames — longer to skip noise blips
     true, // infer onsets
-    null, // max freq (no limit)
-    null, // min freq (no limit)
-    true // melodia trick (helps with monophonic melodies like humming)
+    null, // max freq
+    null, // min freq
+    false // melodia trick OFF — we do our own melody extraction below
   );
 
   // Add pitch bends and convert to timed events
   const notesWithBends = addPitchBendsToNoteEvents(contours, noteEvents);
   const timedNotes = noteFramesToTime(notesWithBends);
 
-  // Convert to our DetectedNote format and quantize to piano range
-  const detectedNotes: DetectedNote[] = timedNotes
-    .filter((n) => n.durationSeconds > 0.05) // filter very short noise notes
-    .map((n) => {
-      let midi = n.pitchMidi;
-      // Transpose to C4-B5 range (MIDI 60-83) if needed for piano visualization
-      while (midi < 60) midi += 12;
-      while (midi > 83) midi -= 12;
+  // Convert to our internal format
+  let rawNotes: RawNote[] = timedNotes
+    .filter((n) => n.durationSeconds > 0.05)
+    .map((n) => ({
+      startTime: n.startTimeSeconds,
+      duration: n.durationSeconds,
+      pitchMidi: n.pitchMidi,
+      amplitude: n.amplitude,
+    }));
 
-      return {
-        note: midiToNoteName(midi),
-        freq: midiToHz(midi),
-        startTime: n.startTimeSeconds,
-        duration: n.durationSeconds,
-        midiNumber: midi,
-        amplitude: n.amplitude,
-      };
-    });
+  // Step 2: Amplitude filtering — remove notes weaker than 25% of the strongest
+  rawNotes = filterByAmplitude(rawNotes, 0.25);
+
+  // Step 3: Skyline algorithm — at each time point, keep only the strongest note
+  rawNotes = skylineExtract(rawNotes);
+
+  // Step 4: Merge fragmented consecutive same-pitch notes
+  rawNotes = mergeConsecutiveNotes(rawNotes, 0.15, 1);
+
+  // Step 5: Remove isolated short notes (noise blips)
+  rawNotes = removeIsolatedNotes(rawNotes, 0.1, 0.5);
+
+  // Convert to DetectedNote format and quantize to piano range
+  const detectedNotes: DetectedNote[] = rawNotes.map((n) => {
+    let midi = n.pitchMidi;
+    // Transpose to C4-B5 range (MIDI 60-83) for piano visualization
+    while (midi < 60) midi += 12;
+    while (midi > 83) midi -= 12;
+
+    return {
+      note: midiToNoteName(midi),
+      freq: midiToHz(midi),
+      startTime: n.startTime,
+      duration: n.duration,
+      midiNumber: midi,
+      amplitude: n.amplitude,
+    };
+  });
 
   return detectedNotes;
 }

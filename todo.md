@@ -91,3 +91,4 @@
 - [x] Feature: Add replay hum button so user can listen to their recording before conversion
 - [x] Research: Find the best voice/hum-to-notes API (replace pitchfinder) → Spotify Basic Pitch
 - [x] Integrate Spotify Basic Pitch ML model into the pipeline (replaced YIN algorithm)
+- [x] Fix: Basic Pitch detects too many notes (harmonics/noise) — extract main melody only
