@@ -370,13 +370,23 @@ export default function Results() {
     }
   };
 
-  const handleDownloadVideo = useCallback(() => {
+  const handleDownloadVideo = useCallback(async () => {
     if (!generatedVideoUrl || !videoStudioTrack) return;
-    const a = document.createElement("a");
-    a.href = generatedVideoUrl;
-    a.download = `${(videoStudioTrack.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4`;
-    a.target = "_blank";
-    a.click();
+    const filename = `${(videoStudioTrack.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4`;
+    try {
+      const resp = await fetch(generatedVideoUrl);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch {
+      window.open(generatedVideoUrl, "_blank");
+    }
   }, [generatedVideoUrl, videoStudioTrack]);
 
   const handleShare = useCallback(async () => {

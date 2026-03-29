@@ -128,3 +128,7 @@
 - [x] Self-test: Session accordion expand/collapse works
 - [x] Self-test: View Music Video navigates to share page with video player
 - [x] Self-test: Landing page, Create page, Gallery page all load correctly
+- [x] Bug: Veo video extension rejects 9:16 aspect ratio — generate at 16:9, extend at 16:9, FFmpeg crop to 9:16 portrait
+- [x] Push current code to GitHub
+- [x] Fix: Results.tsx video download also uses fetch-then-blob approach
+- [x] Fix: Better error message when audio URL has expired (404 → user-friendly message)

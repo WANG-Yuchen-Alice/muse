@@ -383,7 +383,15 @@ async function generateAISceneVideo(
     // ── Step 1: Get audio duration ──
     const audioPath = path.join(tmpdir(), `muse-audio-${id}.tmp`);
     tempFiles.push(audioPath);
-    const audioResp = await axios.get(audioUrl, { responseType: "arraybuffer" });
+    let audioResp;
+    try {
+      audioResp = await axios.get(audioUrl, { responseType: "arraybuffer" });
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        throw new Error("Audio file has expired or is no longer available. Please generate a new track first.");
+      }
+      throw new Error(`Failed to download audio: ${err?.message || "unknown error"}`);
+    }
     await writeFile(audioPath, Buffer.from(audioResp.data));
     const audioDuration = await getAudioDuration(audioPath);
     console.log(`[Veo] Audio duration: ${audioDuration}s`);
@@ -393,11 +401,13 @@ async function generateAISceneVideo(
     console.log(`[Veo] Generating video for "${trackName}" (${styleName}):`, videoPrompt.slice(0, 100) + "...");
 
     // ── Step 3: Generate initial 8s Veo video ──
+    // Generate at 16:9 landscape — Veo extensions reliably support 16:9.
+    // We'll crop to 9:16 portrait in the final FFmpeg merge step.
     let operation = await genai.models.generateVideos({
       model: "veo-3.1-generate-preview",
       prompt: videoPrompt,
       config: {
-        aspectRatio: "9:16",
+        aspectRatio: "16:9",
         numberOfVideos: 1,
       },
     });
@@ -420,7 +430,6 @@ async function generateAISceneVideo(
         prompt: videoPrompt,
         config: {
           numberOfVideos: 1,
-          resolution: "720p",
         },
       });
       extOp = await pollVeoOperation(extOp, `extension ${extensionCount + 1}`);
@@ -455,8 +464,12 @@ async function generateAISceneVideo(
     const outputPath = path.join(tmpdir(), `muse-final-${id}.mp4`);
     tempFiles.push(outputPath);
 
+    // Crop from 16:9 landscape to 9:16 portrait (center crop) + merge audio
+    // The vf filter: scale to ensure height is 1920, then center-crop to 1080x1920
+    const cropFilter = "scale=-2:1920,crop=1080:1920";
+
     if (actualVideoDuration >= audioDuration) {
-      // Video is longer or equal — trim video to audio length, replace audio
+      // Video is longer or equal — trim video to audio length, crop to portrait, replace audio
       await execFileAsync(FFMPEG, [
         "-y",
         "-i", videoPath,
@@ -464,6 +477,7 @@ async function generateAISceneVideo(
         "-t", String(audioDuration),
         "-map", "0:v:0",
         "-map", "1:a:0",
+        "-vf", cropFilter,
         "-c:v", "libx264", "-preset", "fast",
         "-c:a", "aac", "-b:a", "192k",
         "-pix_fmt", "yuv420p",
@@ -472,8 +486,7 @@ async function generateAISceneVideo(
         outputPath,
       ], { timeout: 120000 });
     } else {
-      // Video is shorter — loop video to match audio length, then add audio
-      // Use FFmpeg stream_loop or concat filter to loop
+      // Video is shorter — loop video to match audio length, crop to portrait, then add audio
       const loopCount = Math.ceil(audioDuration / actualVideoDuration);
       await execFileAsync(FFMPEG, [
         "-y",
@@ -483,6 +496,7 @@ async function generateAISceneVideo(
         "-t", String(audioDuration),
         "-map", "0:v:0",
         "-map", "1:a:0",
+        "-vf", cropFilter,
         "-c:v", "libx264", "-preset", "fast",
         "-c:a", "aac", "-b:a", "192k",
         "-pix_fmt", "yuv420p",
