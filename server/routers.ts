@@ -17,8 +17,15 @@ import { promisify } from "util";
 import { writeFile, unlink, readFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
+import ffmpegPath from "ffmpeg-static";
+import ffprobePath from "ffprobe-static";
 
 const execFileAsync = promisify(execFile);
+
+// Use static binaries for ffmpeg/ffprobe (works in deployed environments)
+// ffmpeg-static exports the path as default, ffprobe-static exports { path }
+const FFMPEG = ffmpegPath || "ffmpeg";
+const FFPROBE = (ffprobePath as any)?.path || (typeof ffprobePath === "string" ? ffprobePath : "ffprobe");
 
 const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY ?? "";
 const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY ?? "";
@@ -220,7 +227,7 @@ async function convertToMp3(audioUrl: string): Promise<Buffer> {
 
   try {
     await writeFile(inputPath, Buffer.from(response.data));
-    await execFileAsync("ffmpeg", [
+    await execFileAsync(FFMPEG, [
       "-y", "-i", inputPath,
       "-codec:a", "libmp3lame", "-b:a", "192k",
       "-ar", "44100", "-ac", "2",
@@ -317,9 +324,17 @@ async function downloadVeoVideo(operation: any): Promise<string> {
   return localPath;
 }
 
-// Helper: get audio duration in seconds using ffprobe
+// Helper: get audio duration in seconds using music-metadata (pure JS, no ffprobe needed)
 async function getAudioDuration(audioPath: string): Promise<number> {
-  const { stdout } = await execFileAsync("ffprobe", [
+  try {
+    const { parseFile } = await import("music-metadata");
+    const metadata = await parseFile(audioPath);
+    if (metadata.format.duration) return metadata.format.duration;
+  } catch (e) {
+    console.warn("[Duration] music-metadata failed, trying ffprobe:", e);
+  }
+  // Fallback to ffprobe-static
+  const { stdout } = await execFileAsync(FFPROBE, [
     "-v", "error",
     "-show_entries", "format=duration",
     "-of", "default=noprint_wrappers=1:nokey=1",
@@ -328,15 +343,30 @@ async function getAudioDuration(audioPath: string): Promise<number> {
   return parseFloat(stdout.trim());
 }
 
-// Helper: get video duration in seconds using ffprobe
+// Helper: get video duration in seconds
 async function getVideoDuration(videoPath: string): Promise<number> {
-  const { stdout } = await execFileAsync("ffprobe", [
-    "-v", "error",
-    "-show_entries", "format=duration",
-    "-of", "default=noprint_wrappers=1:nokey=1",
-    videoPath,
-  ], { timeout: 15000 });
-  return parseFloat(stdout.trim());
+  // Try music-metadata first (pure JS, no binary dependency)
+  try {
+    const { parseFile } = await import("music-metadata");
+    const metadata = await parseFile(videoPath);
+    if (metadata.format.duration) return metadata.format.duration;
+  } catch (e) {
+    console.warn("[Duration] music-metadata failed for video, trying ffprobe:", e);
+  }
+  // Fallback to ffprobe-static
+  try {
+    const { stdout } = await execFileAsync(FFPROBE, [
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      videoPath,
+    ], { timeout: 15000 });
+    return parseFloat(stdout.trim());
+  } catch (e) {
+    console.warn("[Duration] ffprobe also failed, estimating from file size:", e);
+    // Last resort: estimate based on typical Veo output (~8s per generation)
+    return 8;
+  }
 }
 
 async function generateAISceneVideo(
@@ -427,7 +457,7 @@ async function generateAISceneVideo(
 
     if (actualVideoDuration >= audioDuration) {
       // Video is longer or equal — trim video to audio length, replace audio
-      await execFileAsync("ffmpeg", [
+      await execFileAsync(FFMPEG, [
         "-y",
         "-i", videoPath,
         "-i", audioPath,
@@ -445,7 +475,7 @@ async function generateAISceneVideo(
       // Video is shorter — loop video to match audio length, then add audio
       // Use FFmpeg stream_loop or concat filter to loop
       const loopCount = Math.ceil(audioDuration / actualVideoDuration);
-      await execFileAsync("ffmpeg", [
+      await execFileAsync(FFMPEG, [
         "-y",
         "-stream_loop", String(loopCount - 1),
         "-i", videoPath,
@@ -494,7 +524,7 @@ async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<B
     if (imageResp) {
       await writeFile(imagePath, Buffer.from(imageResp.data));
       // Create MP4 with static image + audio (9:16 vertical)
-      await execFileAsync("ffmpeg", [
+      await execFileAsync(FFMPEG, [
         "-y",
         "-loop", "1", "-i", imagePath,
         "-i", audioPath,
@@ -508,7 +538,7 @@ async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<B
       ], { timeout: 60000 });
     } else {
       // No image — create a simple black video with audio (9:16 vertical)
-      await execFileAsync("ffmpeg", [
+      await execFileAsync(FFMPEG, [
         "-y",
         "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=30",
         "-i", audioPath,

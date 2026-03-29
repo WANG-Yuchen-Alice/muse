@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, trackName, LEFT(audioUrl, 100) as audioUrl_prefix, status FROM tracks WHERE sessionId = (SELECT id FROM sessions ORDER BY createdAt DESC LIMIT 1 OFFSET 1) LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, LEFT(audioUrl, 100) as audioUrl_prefix, status FROM tracks WHERE sessionId = (SELECT id FROM sessions ORDER BY createdAt DESC LIMIT 1 OFFSET 1) LIMIT 5;",
+  "rows": [
+    {
+      "id": "180005",
+      "trackName": "Drifting Cloud Reverie",
+      "audioUrl_prefix": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/KkXG",
+      "status": "done"
+    },
+    {
+      "id": "180006",
+      "trackName": "Soft Echoes Familiar",
+      "audioUrl_prefix": "https://replicate.delivery/yhqm/PAoRqAuglh7wHNL2w8f8X2m4u11vKK5MEhafVKeF6tfbxwVZB/out.mp3",
+      "status": "done"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\taudioUrl_prefix\tstatus\n180005\tDrifting Cloud Reverie\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/KkXG\tdone\n180006\tSoft Echoes Familiar\thttps://replicate.delivery/yhqm/PAoRqAuglh7wHNL2w8f8X2m4u11vKK5MEhafVKeF6tfbxwVZB/out.mp3\tdone\n",
+  "stderr": "",
+  "execution_time_ms": 1570
+}

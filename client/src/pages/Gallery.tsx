@@ -442,6 +442,7 @@ function GalleryTrackCard({
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [downloading, setDownloading] = useState<"audio" | "video" | null>(null);
 
   const hasVideo = !!track.videoUrl;
   const hasAudio = !!track.audioUrl;
@@ -462,16 +463,30 @@ function GalleryTrackCard({
   }, [isPlaying, track.audioUrl]);
 
   const handleDownload = useCallback(
-    (type: "audio" | "video") => {
+    async (type: "audio" | "video") => {
       const url = type === "video" ? track.videoUrl : track.audioUrl;
-      if (!url) return;
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${(track.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${type === "video" ? "mp4" : "mp3"}`;
-      a.target = "_blank";
-      a.click();
+      if (!url || downloading) return;
+      const filename = `${(track.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${type === "video" ? "mp4" : "mp3"}`;
+      setDownloading(type);
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      } catch {
+        // Fallback: open in new tab
+        window.open(url, "_blank");
+      } finally {
+        setDownloading(null);
+      }
     },
-    [track]
+    [track, downloading]
   );
 
   const handleShare = useCallback(async () => {

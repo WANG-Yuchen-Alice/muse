@@ -59,6 +59,7 @@ export default function Share() {
   const generateVideoMut = trpc.music.generateVideo.useMutation();
 
   const [linkCopied, setLinkCopied] = useState(false);
+  const [downloading, setDownloading] = useState<"audio" | "video" | null>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -71,16 +72,30 @@ export default function Share() {
   const hasVideo = !!videoUrl;
 
   const handleDownload = useCallback(
-    (type: "audio" | "video") => {
+    async (type: "audio" | "video") => {
       const url = type === "video" ? videoUrl : track?.audioUrl;
-      if (!url) return;
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${(track?.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${type === "video" ? "mp4" : "mp3"}`;
-      a.target = "_blank";
-      a.click();
+      if (!url || downloading) return;
+      const filename = `${(track?.trackName || "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.${type === "video" ? "mp4" : "mp3"}`;
+      setDownloading(type);
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      } catch {
+        // Fallback: open in new tab
+        window.open(url, "_blank");
+      } finally {
+        setDownloading(null);
+      }
     },
-    [track, videoUrl]
+    [track, videoUrl, downloading]
   );
 
   const handleShare = useCallback(async () => {
@@ -275,10 +290,15 @@ export default function Share() {
             {track.audioUrl && (
               <Button
                 onClick={() => handleDownload("audio")}
+                disabled={downloading === "audio"}
                 variant="outline"
                 className="flex-1 gap-2 h-11"
               >
-                <Download className="w-4 h-4" />
+                {downloading === "audio" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
                 MP3
               </Button>
             )}
@@ -287,6 +307,7 @@ export default function Share() {
             {hasVideo && (
               <Button
                 onClick={() => handleDownload("video")}
+                disabled={downloading === "video"}
                 variant="outline"
                 className="flex-1 gap-2 h-11"
               >

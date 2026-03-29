@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, trackName, audioUrl FROM tracks WHERE id = 180005;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, audioUrl FROM tracks WHERE id = 180005;",
+  "rows": [
+    {
+      "id": "180005",
+      "trackName": "Drifting Cloud Reverie",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/KkXGmchRDZsNV93UA_vlE.mp3"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\taudioUrl\n180005\tDrifting Cloud Reverie\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/KkXGmchRDZsNV93UA_vlE.mp3\n",
+  "stderr": "",
+  "execution_time_ms": 1567
+}

@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, trackName, styleId, audioUrl, videoUrl, status FROM tracks ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, styleId, audioUrl, videoUrl, status FROM tracks ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "210002",
+      "trackName": "Familiar Echoes Softly",
+      "styleId": "lofi",
+      "audioUrl": "https://replicate.delivery/yhqm/jLuSSeC53WTqX61efYSTYlNBbPzKnmiP4nxXp60TCfYFeJtyC/out.mp3",
+      "videoUrl": "NULL",
+      "status": "done"
+    },
+    {
+      "id": "210001",
+      "trackName": "Drifting Through Starlight",
+      "styleId": "lofi",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/EkvwNebs2JvVYCMkfysVF.mp3",
+      "videoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/videos/veo-wV40qRWnwcTCrdmh6-nrl.mp4",
+      "status": "done"
+    },
+    {
+      "id": "180006",
+      "trackName": "Soft Echoes Familiar",
+      "styleId": "lofi",
+      "audioUrl": "https://replicate.delivery/yhqm/PAoRqAuglh7wHNL2w8f8X2m4u11vKK5MEhafVKeF6tfbxwVZB/out.mp3",
+      "videoUrl": "NULL",
+      "status": "done"
+    },
+    {
+      "id": "180005",
+      "trackName": "Drifting Cloud Reverie",
+      "styleId": "lofi",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/KkXGmchRDZsNV93UA_vlE.mp3",
+      "videoUrl": "NULL",
+      "status": "done"
+    },
+    {
+      "id": "180004",
+      "trackName": "Soft Echoes Home",
+      "styleId": "lofi",
+      "audioUrl": "https://replicate.delivery/yhqm/IjCnE83VzJZcGhMXlmC7cmjJdOnAnlzFkUc16nrWiVvmftKLA/out.mp3",
+      "videoUrl": "NULL",
+      "status": "done"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\tstyleId\taudioUrl\tvideoUrl\tstatus\n210002\tFamiliar Echoes Softly\tlofi\thttps://replicate.delivery/yhqm/jLuSSeC53WTqX61efYSTYlNBbPzKnmiP4nxXp60TCfYFeJtyC/out.mp3\tNULL\tdone\n210001\tDrifting Through Starlight\tlofi\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/EkvwNebs2JvVYCMkfysVF.mp3\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/videos/veo-wV40qRWnwcTCrdmh6-nrl.mp4\tdone\n180006\tSoft Echoes Familiar\tlofi\thttps://replicate.delivery/yhqm/PAoRqAuglh7wHNL2w8f8X2m4u11vKK5MEhafVKeF6tfbxwVZB/out.mp3\tNULL\tdone\n180005\tDrifting Cloud Reverie\tlofi\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/KkXGmchRDZsNV93UA_vlE.mp3\tNULL\tdone\n180004\tSoft Echoes Home\tlofi\thttps://replicate.delivery/yhqm/IjCnE83VzJZcGhMXlmC7cmjJdOnAnlzFkUc16nrWiVvmftKLA/out.mp3\tNULL\tdone\n",
+  "stderr": "",
+  "execution_time_ms": 1574
+}

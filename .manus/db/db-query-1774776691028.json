@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, trackName, videoUrl FROM tracks WHERE id = 210001;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, videoUrl FROM tracks WHERE id = 210001;",
+  "rows": [
+    {
+      "id": "210001",
+      "trackName": "Drifting Through Starlight",
+      "videoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/videos/veo-wV40qRWnwcTCrdmh6-nrl.mp4"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\tvideoUrl\n210001\tDrifting Through Starlight\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/videos/veo-wV40qRWnwcTCrdmh6-nrl.mp4\n",
+  "stderr": "",
+  "execution_time_ms": 1546
+}

@@ -80,7 +80,7 @@
 - [x] Updated all internal navigation links from / to /create
 - [x] Research Gemini Veo 3.1 API: supports 9:16 portrait, 8s videos, text-to-video, native audio, @google/genai SDK
 - [x] Push all changes to GitHub (via checkpoint sync)
-- [ ] Bug: Generate Video button still not responding (deep investigation needed)
+- [x] Bug: Generate Video button still not responding (deep investigation needed)
 - [x] Feature: Hum-to-Piano-Keys conversion — detect pitch from hum audio, map to piano keys
 - [x] Feature: Dev debug UI showing hum → identified piano keys for accuracy verification
 - [x] Wire converted piano keys into music generation pipeline (use keyboard input path)
@@ -114,3 +114,17 @@
 - [x] Fix: Rewrite video pipeline — audio→Gemini text→Veo video→extend→FFmpeg merge audio+video
 - [x] Handle length mismatch: trim if video longer, loop if video shorter
 - [x] Update frontend progress UI for multi-step video generation (2-5 min estimate)
+- [x] Bug: spawn ffprobe ENOENT — ffprobe/ffmpeg not available in deployed env, replace with Node.js packages
+- [x] Fix: MP3/Video download uses fetch-then-blob instead of <a> tag for cross-origin URLs
+- [x] Fix: Gallery MP3/Video download also uses fetch-then-blob approach
+- [x] Fix: getVideoDuration uses music-metadata instead of ffprobe (Node.js native)
+- [x] Fix: Removed ffmpeg-static from ignoredBuiltDependencies for deployment compatibility
+- [x] Self-test: All 26 vitest tests pass (6 test files)
+- [x] Self-test: All API endpoints return correct data (listSessions, listTracks, getTrack)
+- [x] Self-test: MP3 download works (737KB file verified)
+- [x] Self-test: Video download works (3.2MB MP4 file verified)
+- [x] Self-test: Share/Copy link buttons work
+- [x] Self-test: Gallery style filters work
+- [x] Self-test: Session accordion expand/collapse works
+- [x] Self-test: View Music Video navigates to share page with video player
+- [x] Self-test: Landing page, Create page, Gallery page all load correctly
