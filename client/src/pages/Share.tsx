@@ -10,7 +10,7 @@
  * - Generate Video (if no video exists yet)
  * - View existing video
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion } from "framer-motion";
 import {
@@ -64,6 +64,9 @@ export default function Share() {
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoJobId, setVideoJobId] = useState<string | null>(null);
+  const [videoJobStep, setVideoJobStep] = useState<string>("");
+  const [videoJobProgress, setVideoJobProgress] = useState(0);
 
   const color = track?.color ?? STYLE_META[track?.styleId ?? ""]?.color ?? "#A78BFA";
   const styleName = track?.styleName ?? STYLE_META[track?.styleId ?? ""]?.name ?? "";
@@ -142,10 +145,41 @@ export default function Share() {
     setTimeout(() => setLinkCopied(false), 2000);
   }, []);
 
+  // Poll for video job status
+  const videoJobQuery = trpc.music.videoJobStatus.useQuery(
+    { jobId: videoJobId! },
+    {
+      enabled: !!videoJobId && videoGenerating,
+      refetchInterval: 3000,
+    }
+  );
+
+  // React to job status changes
+  useEffect(() => {
+    if (!videoJobQuery.data || !videoJobId) return;
+    const { status, progress, step, videoUrl: jobVideoUrl, error: jobError } = videoJobQuery.data;
+    setVideoJobStep(step);
+    setVideoJobProgress(progress);
+
+    if (status === "done" && jobVideoUrl) {
+      setGeneratedVideoUrl(jobVideoUrl);
+      setVideoGenerating(false);
+      setVideoJobId(null);
+      // Invalidate the track query so it picks up the new videoUrl from DB
+      utils.gallery.getTrack.invalidate({ trackId });
+    } else if (status === "error") {
+      setVideoError(jobError || "Video generation failed. Please try again.");
+      setVideoGenerating(false);
+      setVideoJobId(null);
+    }
+  }, [videoJobQuery.data, videoJobId, utils, trackId]);
+
   const handleGenerateVideo = useCallback(async () => {
     if (!track || videoGenerating) return;
     setVideoGenerating(true);
     setVideoError(null);
+    setVideoJobStep("Starting video generation...");
+    setVideoJobProgress(0);
     try {
       const result = await generateVideoMut.mutateAsync({
         audioUrl: track.audioUrl || "",
@@ -155,16 +189,14 @@ export default function Share() {
         color: color,
         melodyDescription: undefined,
       });
-      setGeneratedVideoUrl(result.url);
-      // Invalidate the track query so it picks up the new videoUrl from DB
-      utils.gallery.getTrack.invalidate({ trackId });
+      // The mutation now returns a jobId, start polling
+      setVideoJobId(result.jobId);
     } catch (err: any) {
       console.error("Video generation failed:", err);
-      setVideoError(err?.message || "Video generation failed. Please try again.");
-    } finally {
+      setVideoError(err?.message || "Failed to start video generation.");
       setVideoGenerating(false);
     }
-  }, [track, videoGenerating, generateVideoMut, color, utils, trackId]);
+  }, [track, videoGenerating, generateVideoMut, color]);
 
   if (isLoading) {
     return (
@@ -347,8 +379,19 @@ export default function Share() {
               Create Music Video
             </Button>
           )}
-          {!hasVideo && track.audioUrl && (
-            <VideoProgressIndicator active={videoGenerating} />
+          {!hasVideo && track.audioUrl && videoGenerating && (
+            <div className="flex flex-col gap-3 py-2 mb-3">
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${videoJobProgress}%` }}
+                />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-primary font-medium">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>{videoJobStep || "Starting..."}</span>
+              </div>
+            </div>
           )}
 
           {/* Video error message */}

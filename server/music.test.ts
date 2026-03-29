@@ -152,3 +152,60 @@ describe("gallery.listTracks", () => {
     expect(Array.isArray(result.tracks)).toBe(true);
   });
 });
+
+describe("music.generateVideo", () => {
+  it("returns a jobId immediately (background job pattern)", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // This should return immediately with a jobId (not block for minutes)
+    const result = await caller.music.generateVideo({
+      audioUrl: "https://example.com/nonexistent-audio.mp3",
+      styleId: "lofi",
+      trackName: "Test Track",
+    });
+
+    expect(result).toHaveProperty("jobId");
+    expect(typeof result.jobId).toBe("string");
+    expect(result.jobId.length).toBeGreaterThan(0);
+  });
+});
+
+describe("music.videoJobStatus", () => {
+  it("returns error status for non-existent job", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.music.videoJobStatus({ jobId: "nonexistent-job-id" });
+
+    expect(result).toHaveProperty("status");
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("not found");
+    expect(result.videoUrl).toBeNull();
+  });
+
+  it("returns valid status for a real job", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Start a job first
+    const { jobId } = await caller.music.generateVideo({
+      audioUrl: "https://example.com/nonexistent-audio.mp3",
+      styleId: "cinematic",
+      trackName: "Status Test",
+    });
+
+    // Immediately check status — should be pending or analyzing
+    const status = await caller.music.videoJobStatus({ jobId });
+
+    expect(status).toHaveProperty("status");
+    expect(status).toHaveProperty("progress");
+    expect(status).toHaveProperty("step");
+    expect(status).toHaveProperty("segmentsDone");
+    expect(status).toHaveProperty("segmentsTotal");
+    expect(typeof status.progress).toBe("number");
+    expect(typeof status.step).toBe("string");
+    // Job should be in an early state
+    expect(["pending", "analyzing", "prompting", "generating", "error"]).toContain(status.status);
+  });
+});

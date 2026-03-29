@@ -146,3 +146,7 @@
 - [x] End-to-end Hailuo pipeline verified: 4 segments + FFmpeg merge + S3 upload (8.8MB final video)
 - [x] Network error recovery: TLS disconnects retried and recovered automatically
 - [x] All 26 vitest tests pass after Hailuo migration
+- [x] Bug: Video generation progress completes but UI reverts to Generate button instead of showing video
+- [x] Convert video generation to background job + polling pattern (prevents HTTP timeout)
+- [x] Add server-driven progress reporting (real-time step + percentage from server)
+- [x] Add vitest tests for generateVideo and videoJobStatus endpoints (29 tests pass)

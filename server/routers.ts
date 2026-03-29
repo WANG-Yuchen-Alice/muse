@@ -37,6 +37,36 @@ const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY ?? "";
 const genai = new GoogleGenAI({ apiKey: GOOGLE_AI_API_KEY });
 
 // ============================================================
+// Video Job Store — in-memory background job tracking
+// ============================================================
+interface VideoJob {
+  id: string;
+  status: "pending" | "analyzing" | "prompting" | "generating" | "downloading" | "merging" | "uploading" | "done" | "error";
+  progress: number; // 0-100
+  step: string; // human-readable current step
+  segmentsDone: number;
+  segmentsTotal: number;
+  videoUrl: string | null;
+  error: string | null;
+  createdAt: number;
+}
+
+const videoJobs = new Map<string, VideoJob>();
+
+// Clean up old jobs after 1 hour
+setInterval(() => {
+  const oneHourAgo = Date.now() - 3600000;
+  Array.from(videoJobs.entries()).forEach(([id, job]) => {
+    if (job.createdAt < oneHourAgo) videoJobs.delete(id);
+  });
+}, 300000);
+
+function updateJobProgress(jobId: string, updates: Partial<VideoJob>) {
+  const job = videoJobs.get(jobId);
+  if (job) Object.assign(job, updates);
+}
+
+// ============================================================
 // Track name generator — more poetic and evocative
 // ============================================================
 async function generateTrackName(style: string, variant: "faithful" | "reimagined"): Promise<string> {
@@ -444,19 +474,29 @@ async function getVideoDuration(videoPath: string): Promise<number> {
   }
 }
 
-async function generateAISceneVideo(
+/**
+ * Generate AI scene video with real-time progress reporting to the job store.
+ * This is the progress-aware version called by background jobs.
+ */
+async function generateAISceneVideoWithProgress(
   trackName: string,
   styleId: string,
   styleName: string,
   audioUrl: string,
   imageUrl?: string,
-  melodyDesc?: string
+  melodyDesc?: string,
+  jobId?: string
 ): Promise<string> {
   const id = nanoid();
   const tempFiles: string[] = [];
 
+  const report = (updates: Partial<VideoJob>) => {
+    if (jobId) updateJobProgress(jobId, updates);
+  };
+
   try {
     // ── Step 1: Get audio duration ──
+    report({ status: "analyzing", step: "Downloading and analyzing audio...", progress: 5 });
     const audioPath = path.join(tmpdir(), `muse-audio-${id}.tmp`);
     tempFiles.push(audioPath);
     let audioResp;
@@ -473,21 +513,29 @@ async function generateAISceneVideo(
     console.log(`[Hailuo] Audio duration: ${audioDuration}s`);
 
     // ── Step 2: Plan segments ──
-    // Hailuo 2.3 generates 6s (1080p) or 10s (768p) clips. Use 768p for longer clips.
-    const SEGMENT_DURATION = 10; // 10s at 768p resolution
+    const SEGMENT_DURATION = 10;
     const segmentCount = Math.max(1, Math.ceil(audioDuration / SEGMENT_DURATION));
     console.log(`[Hailuo] Plan: ${segmentCount} segment(s) of ${SEGMENT_DURATION}s each for ${audioDuration}s audio`);
+    report({ segmentsTotal: segmentCount, progress: 8 });
 
     // ── Step 3: Generate scene prompts ──
+    report({ status: "prompting", step: "Writing scene descriptions...", progress: 10 });
     const prompts = await generateVideoPrompts(styleId, styleName, trackName, segmentCount, melodyDesc);
     console.log(`[Hailuo] Generated ${prompts.length} prompts for "${trackName}" (${styleName})`);
+    report({ progress: 15 });
 
     // ── Step 4: Generate video clips with Hailuo 2.3 ──
-    // Generate all segments (sequentially to avoid rate limits)
+    report({ status: "generating", step: `Generating video clip 1/${segmentCount}...`, progress: 15 });
     const segmentUrls: string[] = [];
     for (let i = 0; i < segmentCount; i++) {
       const prompt = prompts[i] || prompts[0];
       console.log(`[Hailuo] Generating segment ${i + 1}/${segmentCount} (${SEGMENT_DURATION}s): ${prompt.slice(0, 80)}...`);
+      report({
+        step: `Generating video clip ${i + 1}/${segmentCount}...`,
+        segmentsDone: i,
+        // Progress: 15% to 80% spread across segments
+        progress: 15 + Math.round((i / segmentCount) * 65),
+      });
 
       try {
         const hailuoInput: Record<string, any> = {
@@ -496,7 +544,6 @@ async function generateAISceneVideo(
           resolution: "768p",
           prompt_optimizer: true,
         };
-        // Use cover image as first frame for 9:16 aspect ratio (only for first segment)
         if (imageUrl && i === 0) {
           hailuoInput.first_frame_image = imageUrl;
         }
@@ -505,17 +552,16 @@ async function generateAISceneVideo(
           `segment ${i + 1}/${segmentCount}`
         );
         segmentUrls.push(videoUrl);
+        report({ segmentsDone: i + 1 });
       } catch (segErr: any) {
         const errMsg = segErr?.message || String(segErr);
         console.error(`[Hailuo] Segment ${i + 1} failed: ${errMsg}`);
         if (segmentUrls.length === 0) {
-          // First segment failed — no video at all
           if (errMsg.includes("rate") || errMsg.includes("limit") || errMsg.includes("quota") || errMsg.includes("Queue")) {
             throw new Error("Video generation is temporarily unavailable due to high demand. Please try again in a few minutes.");
           }
           throw new Error(`Video generation failed: ${errMsg.slice(0, 200)}`);
         }
-        // We have at least one segment — continue with what we have
         console.warn(`[Hailuo] Continuing with ${segmentUrls.length} segments (will loop to fill)`);
         break;
       }
@@ -524,6 +570,7 @@ async function generateAISceneVideo(
     console.log(`[Hailuo] Generated ${segmentUrls.length}/${segmentCount} segments successfully`);
 
     // ── Step 5: Download all segment videos ──
+    report({ status: "downloading", step: "Downloading video clips...", progress: 82 });
     const segmentPaths: string[] = [];
     for (let i = 0; i < segmentUrls.length; i++) {
       console.log(`[Hailuo] Downloading segment ${i + 1}/${segmentUrls.length}...`);
@@ -533,12 +580,12 @@ async function generateAISceneVideo(
     }
 
     // ── Step 6: FFmpeg merge — concat segments + add audio ──
+    report({ status: "merging", step: "Merging video + audio...", progress: 87 });
     const outputPath = path.join(tmpdir(), `muse-final-${id}.mp4`);
     tempFiles.push(outputPath);
-    const ffmpegTimeout = 300000; // 5 minutes
+    const ffmpegTimeout = 300000;
 
     if (segmentPaths.length === 1) {
-      // Single segment — loop to match audio duration, add audio
       const segDuration = await getVideoDuration(segmentPaths[0]);
       const loopCount = Math.ceil(audioDuration / segDuration);
       console.log(`[Hailuo] Single segment (${segDuration.toFixed(1)}s), looping ${loopCount}x for ${audioDuration.toFixed(1)}s audio`);
@@ -559,17 +606,14 @@ async function generateAISceneVideo(
         outputPath,
       ], { timeout: ffmpegTimeout });
     } else {
-      // Multiple segments — create concat list, merge, add audio
       const concatListPath = path.join(tmpdir(), `muse-concat-${id}.txt`);
       tempFiles.push(concatListPath);
 
-      // Calculate total video duration from segments
       let totalSegDuration = 0;
       for (const sp of segmentPaths) {
         totalSegDuration += await getVideoDuration(sp);
       }
 
-      // If total segment duration < audio, loop the last segment to fill
       const concatLines: string[] = [];
       for (const sp of segmentPaths) {
         concatLines.push(`file '${sp}'`);
@@ -606,6 +650,7 @@ async function generateAISceneVideo(
     console.log(`[Hailuo] FFmpeg merge completed successfully`);
 
     // ── Step 7: Upload final MP4 to S3 ──
+    report({ status: "uploading", step: "Uploading final video...", progress: 93 });
     const finalBuffer = await readFile(outputPath);
     const key = `videos/music-video-${id}.mp4`;
     const { url } = await storagePut(key, finalBuffer, "video/mp4");
@@ -613,7 +658,6 @@ async function generateAISceneVideo(
     return url;
 
   } finally {
-    // Clean up all temp files
     for (const f of tempFiles) {
       await unlink(f).catch(() => {});
     }
@@ -1097,7 +1141,7 @@ Rules:
         return { url, filename: `${(input.trackName ?? "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4` };
       }),
 
-    /** Generate a 9:16 AI scene video using Kling 3.0 via Replicate */
+    /** Start video generation as a background job — returns jobId immediately */
     generateVideo: publicProcedure
       .input(z.object({
         audioUrl: z.string(),
@@ -1112,31 +1156,91 @@ Rules:
         const trackName = input.trackName || "Untitled";
         const styleName = style?.name || input.styleId;
 
-        // Generate AI scene video with Hailuo 2.3 + merge with audio
-        const videoUrl = await generateAISceneVideo(
-          trackName,
-          input.styleId,
-          styleName,
-          input.audioUrl,
-          input.imageUrl,
-          input.melodyDescription,
-        );
+        // Create a job and return immediately
+        const jobId = nanoid();
+        const job: VideoJob = {
+          id: jobId,
+          status: "pending",
+          progress: 0,
+          step: "Starting video generation...",
+          segmentsDone: 0,
+          segmentsTotal: 0,
+          videoUrl: null,
+          error: null,
+          createdAt: Date.now(),
+        };
+        videoJobs.set(jobId, job);
 
-        // Update track videoUrl in DB if we can find the track
-        try {
-          const db = await getDb();
-          if (db && input.audioUrl) {
-            await db.update(tracks)
-              .set({ videoUrl })
-              .where(eq(tracks.audioUrl, input.audioUrl));
+        // Run the actual generation in the background (fire-and-forget)
+        (async () => {
+          try {
+            updateJobProgress(jobId, { status: "analyzing", step: "Analyzing audio...", progress: 5 });
+
+            const videoUrl = await generateAISceneVideoWithProgress(
+              trackName,
+              input.styleId,
+              styleName,
+              input.audioUrl,
+              input.imageUrl,
+              input.melodyDescription,
+              jobId,
+            );
+
+            // Update track videoUrl in DB
+            try {
+              const db = await getDb();
+              if (db && input.audioUrl) {
+                await db.update(tracks)
+                  .set({ videoUrl })
+                  .where(eq(tracks.audioUrl, input.audioUrl));
+              }
+            } catch (err) {
+              console.error("Failed to update track videoUrl:", err);
+            }
+
+            updateJobProgress(jobId, {
+              status: "done",
+              progress: 100,
+              step: "Video ready!",
+              videoUrl,
+            });
+          } catch (err: any) {
+            console.error(`[VideoJob ${jobId}] Failed:`, err);
+            updateJobProgress(jobId, {
+              status: "error",
+              step: "Generation failed",
+              error: err?.message || "Video generation failed",
+            });
           }
-        } catch (err) {
-          console.error("Failed to update track videoUrl:", err);
-        }
+        })();
 
+        return { jobId };
+      }),
+
+    /** Poll for video generation job status */
+    videoJobStatus: publicProcedure
+      .input(z.object({ jobId: z.string() }))
+      .query(({ input }) => {
+        const job = videoJobs.get(input.jobId);
+        if (!job) {
+          return {
+            status: "error" as const,
+            progress: 0,
+            step: "Job not found",
+            segmentsDone: 0,
+            segmentsTotal: 0,
+            videoUrl: null,
+            error: "Job not found or expired",
+          };
+        }
         return {
-          url: videoUrl,
-          filename: `${trackName.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4`,
+          status: job.status,
+          progress: job.progress,
+          step: job.step,
+          segmentsDone: job.segmentsDone,
+          segmentsTotal: job.segmentsTotal,
+          videoUrl: job.videoUrl,
+          error: job.error,
         };
       }),
 

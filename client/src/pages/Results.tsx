@@ -94,6 +94,10 @@ export default function Results() {
   const [videoStudioTrack, setVideoStudioTrack] = useState<GeneratedTrack | null>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [videoJobId, setVideoJobId] = useState<string | null>(null);
+  const [videoJobStep, setVideoJobStep] = useState<string>("");
+  const [videoJobProgress, setVideoJobProgress] = useState(0);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(() => Math.floor(Math.random() * LOADING_MESSAGES.length));
 
@@ -346,6 +350,33 @@ export default function Results() {
   const videoStudioTrackRef = useRef<GeneratedTrack | null>(null);
   videoStudioTrackRef.current = videoStudioTrack;
 
+  // Poll for video job status
+  const videoJobQuery = trpc.music.videoJobStatus.useQuery(
+    { jobId: videoJobId! },
+    {
+      enabled: !!videoJobId && videoGenerating,
+      refetchInterval: 3000, // Poll every 3 seconds
+    }
+  );
+
+  // React to job status changes
+  useEffect(() => {
+    if (!videoJobQuery.data || !videoJobId) return;
+    const { status, progress, step, videoUrl, error } = videoJobQuery.data;
+    setVideoJobStep(step);
+    setVideoJobProgress(progress);
+
+    if (status === "done" && videoUrl) {
+      setGeneratedVideoUrl(videoUrl);
+      setVideoGenerating(false);
+      setVideoJobId(null);
+    } else if (status === "error") {
+      setVideoError(error || "Video generation failed");
+      setVideoGenerating(false);
+      setVideoJobId(null);
+    }
+  }, [videoJobQuery.data, videoJobId]);
+
   const handleGenerateVideo = async () => {
     const track = videoStudioTrackRef.current;
     console.log('[VideoStudio] handleGenerateVideo called, track:', track?.trackName, 'generating:', videoGenerating);
@@ -354,6 +385,9 @@ export default function Results() {
       return;
     }
     setVideoGenerating(true);
+    setVideoError(null);
+    setVideoJobStep("Starting video generation...");
+    setVideoJobProgress(0);
     try {
       const result = await generateVideoMut.mutateAsync({
         audioUrl: track.audioUrl,
@@ -363,10 +397,11 @@ export default function Results() {
         color: track.color,
         melodyDescription: melodyDescription || undefined,
       });
-      setGeneratedVideoUrl(result.url);
-    } catch (err) {
+      // The mutation now returns a jobId, start polling
+      setVideoJobId(result.jobId);
+    } catch (err: any) {
       console.error('[VideoStudio] Video generation failed:', err);
-    } finally {
+      setVideoError(err?.message || "Failed to start video generation");
       setVideoGenerating(false);
     }
   };
@@ -630,6 +665,8 @@ export default function Results() {
             setVideoStudioTrack(null);
             setGeneratedVideoUrl(null);
             setVideoGenerating(false);
+            setVideoJobId(null);
+            setVideoError(null);
           }
         }}
       >
@@ -687,7 +724,26 @@ export default function Results() {
                 </Button>
               )}
 
-              <VideoProgressIndicator active={videoGenerating} />
+              {/* Server-driven progress */}
+              {videoGenerating && (
+                <div className="flex flex-col gap-3 py-2">
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{ width: `${videoJobProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-primary font-medium">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>{videoJobStep || "Starting..."}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Error message */}
+              {videoError && !videoGenerating && (
+                <p className="text-xs text-destructive text-center">{videoError}</p>
+              )}
 
               {!videoGenerating && (
                 <p className="text-[10px] text-muted-foreground text-center">
