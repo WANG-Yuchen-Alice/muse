@@ -61,6 +61,7 @@ export default function Share() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   const color = track?.color ?? STYLE_META[track?.styleId ?? ""]?.color ?? "#A78BFA";
   const styleName = track?.styleName ?? STYLE_META[track?.styleId ?? ""]?.name ?? "";
@@ -128,6 +129,7 @@ export default function Share() {
   const handleGenerateVideo = useCallback(async () => {
     if (!track || videoGenerating) return;
     setVideoGenerating(true);
+    setVideoError(null);
     try {
       const result = await generateVideoMut.mutateAsync({
         audioUrl: track.audioUrl || "",
@@ -140,8 +142,9 @@ export default function Share() {
       setGeneratedVideoUrl(result.url);
       // Invalidate the track query so it picks up the new videoUrl from DB
       utils.gallery.getTrack.invalidate({ trackId });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Video generation failed:", err);
+      setVideoError(err?.message || "Video generation failed. Please try again.");
     } finally {
       setVideoGenerating(false);
     }
@@ -331,6 +334,11 @@ export default function Share() {
                 </>
               )}
             </Button>
+          )}
+
+          {/* Video error message */}
+          {videoError && (
+            <p className="text-xs text-destructive text-center mb-3">{videoError}</p>
           )}
 
           {/* Copy link */}

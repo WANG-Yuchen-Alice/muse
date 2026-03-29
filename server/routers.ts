@@ -301,7 +301,6 @@ async function generateAISceneVideo(
       aspectRatio: "9:16",
       numberOfVideos: 1,
       personGeneration: "dont_allow",
-      generateAudio: false, // We have our own music
     },
   });
 
