@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import VideoProgressIndicator from "@/components/VideoProgressIndicator";
 
 const LOGO =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/muse-logo-iAru96gtvvShY97Zw7G2SK.webp";
@@ -336,25 +337,18 @@ export default function Share() {
           </div>
 
           {/* Generate Video button (always visible, whether video exists or not) */}
-          {!hasVideo && track.audioUrl && (
+          {!hasVideo && track.audioUrl && !videoGenerating && (
             <Button
               onClick={handleGenerateVideo}
-              disabled={videoGenerating}
               variant="outline"
               className="w-full gap-2 h-11 mb-3 border-primary/30 hover:bg-primary/5"
             >
-              {videoGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating Music Video... (2-5 min)
-                </>
-              ) : (
-                <>
-                  <Film className="w-4 h-4" />
-                  Create Music Video
-                </>
-              )}
+              <Film className="w-4 h-4" />
+              Create Music Video
             </Button>
+          )}
+          {!hasVideo && track.audioUrl && (
+            <VideoProgressIndicator active={videoGenerating} />
           )}
 
           {/* Video error message */}

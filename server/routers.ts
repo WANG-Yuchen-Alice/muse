@@ -151,7 +151,19 @@ async function generateWithMusicGen(
     const status = pollRes.data.status;
     if (status === "succeeded") {
       const output = pollRes.data.output;
-      return { audioUrl: typeof output === "string" ? output : output };
+      const replicateUrl = typeof output === "string" ? output : output;
+
+      // Re-upload to S3 so the URL never expires (Replicate URLs expire in ~24h)
+      try {
+        const audioResp = await axios.get(replicateUrl, { responseType: "arraybuffer" });
+        const key = `generated/musicgen/${nanoid()}.mp3`;
+        const { url: s3Url } = await storagePut(key, Buffer.from(audioResp.data), "audio/mpeg");
+        console.log(`[MusicGen] Re-uploaded to S3: ${s3Url}`);
+        return { audioUrl: s3Url };
+      } catch (uploadErr) {
+        console.warn(`[MusicGen] S3 re-upload failed, using Replicate URL:`, uploadErr);
+        return { audioUrl: replicateUrl };
+      }
     }
     if (status === "failed" || status === "canceled") {
       throw new Error(`MusicGen prediction ${status}: ${pollRes.data.error ?? "unknown error"}`);

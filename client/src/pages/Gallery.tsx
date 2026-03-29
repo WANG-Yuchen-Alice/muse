@@ -445,7 +445,8 @@ function GalleryTrackCard({
   const [downloading, setDownloading] = useState<"audio" | "video" | null>(null);
 
   const hasVideo = !!track.videoUrl;
-  const hasAudio = !!track.audioUrl;
+  const isExpired = track.status === "expired";
+  const hasAudio = !!track.audioUrl && !isExpired;
 
   const togglePlay = useCallback(() => {
     if (!track.audioUrl) return;
@@ -556,6 +557,12 @@ function GalleryTrackCard({
           <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm">
             <Film className="w-2.5 h-2.5 text-white" />
             <span className="text-[9px] font-semibold text-white">VIDEO</span>
+          </div>
+        )}
+        {/* Expired badge */}
+        {isExpired && !hasVideo && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-600/80 backdrop-blur-sm">
+            <span className="text-[9px] font-semibold text-white">Audio Expired</span>
           </div>
         )}
 

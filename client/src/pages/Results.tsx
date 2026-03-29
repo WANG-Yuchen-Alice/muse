@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import StyleAnimation from "@/components/StyleAnimation";
 import { trpc } from "@/lib/trpc";
+import VideoProgressIndicator from "@/components/VideoProgressIndicator";
 import { MUSIC_FACTS } from "@shared/musicFacts";
 import {
   Dialog,
@@ -670,33 +671,29 @@ export default function Results() {
               </div>
 
               {/* Generate button */}
-              <Button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log('[VideoStudio] Button clicked!');
-                  handleGenerateVideo();
-                }}
-                disabled={videoGenerating}
-                className="w-full gap-2 gradient-cosmic text-white font-semibold h-11 rounded-full border-0 hover:opacity-90 transition-all relative z-50"
-              >
-                {videoGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating Music Video... (2-5 min)
-                  </>
-                ) : (
-                  <>
-                    <Film className="w-4 h-4" />
-                    Generate AI Music Video
-                  </>
-                )}
-              </Button>
+              {!videoGenerating && (
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[VideoStudio] Button clicked!');
+                    handleGenerateVideo();
+                  }}
+                  className="w-full gap-2 gradient-cosmic text-white font-semibold h-11 rounded-full border-0 hover:opacity-90 transition-all relative z-50"
+                >
+                  <Film className="w-4 h-4" />
+                  Generate AI Music Video
+                </Button>
+              )}
 
-              <p className="text-[10px] text-muted-foreground text-center">
-                AI generates a cinematic scene video matching your music's mood, then merges it with your audio track
-              </p>
+              <VideoProgressIndicator active={videoGenerating} />
+
+              {!videoGenerating && (
+                <p className="text-[10px] text-muted-foreground text-center">
+                  AI generates a cinematic scene video matching your music's mood, then merges it with your audio track
+                </p>
+              )}
             </div>
           )}
 

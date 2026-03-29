@@ -132,3 +132,7 @@
 - [x] Push current code to GitHub
 - [x] Fix: Results.tsx video download also uses fetch-then-blob approach
 - [x] Fix: Better error message when audio URL has expired (404 → user-friendly message)
+- [x] Clean up expired Replicate URLs in DB (all 30 expired, marked status='expired')
+- [x] Fix MusicGen pipeline to always upload audio to S3 after generation (prevent future expiry)
+- [x] Add step-by-step video generation progress indicator (replace "2-5 min" with actual steps)
+- [x] Remove "2-5 min" estimate, show real progress steps instead

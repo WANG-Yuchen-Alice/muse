@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE tracks SET status = 'expired' WHERE audioUrl LIKE '%replicate.delivery%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute UPDATE tracks SET status = 'expired' WHERE audioUrl LIKE '%replicate.delivery%';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1533
+}

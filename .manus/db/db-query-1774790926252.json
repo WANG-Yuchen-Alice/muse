@@ -1,0 +1,250 @@
+{
+  "query": "SELECT id, trackName, audioUrl, styleId, variant, createdAt FROM tracks WHERE audioUrl LIKE '%replicate.delivery%' ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, audioUrl, styleId, variant, createdAt FROM tracks WHERE audioUrl LIKE '%replicate.delivery%' ORDER BY id;",
+  "rows": [
+    {
+      "id": "2",
+      "trackName": "Familiar Heartbeat Echoes",
+      "audioUrl": "https://replicate.delivery/yhqm/l0l7dbhRp659AJsh8KadGv1hJb17T0WW00AabCkFZm3HiOlF/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 02:49:04"
+    },
+    {
+      "id": "4",
+      "trackName": "Echoes of a Heartbeat",
+      "audioUrl": "https://replicate.delivery/yhqm/dv7Nwj3E9vq1IV8MxYJf3YEtFy7cCdXS31cKP6kLXIknEdKLA/out.mp3",
+      "styleId": "cinematic",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 02:49:51"
+    },
+    {
+      "id": "6",
+      "trackName": "Velvet Heartbeat Echoes",
+      "audioUrl": "https://replicate.delivery/yhqm/Zr6veANqecgHOUKUkzMWI1hLARkwgwfju7NzeKsisf3wPRnyC/out.mp3",
+      "styleId": "jazz",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 02:50:39"
+    },
+    {
+      "id": "8",
+      "trackName": "Echoes of Self",
+      "audioUrl": "https://replicate.delivery/yhqm/LRlPIEi1hL6LK1jcudsG34e9RrHe0N2N4efssJYuyO05qoTZB/out.mp3",
+      "styleId": "electronic",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 02:51:27"
+    },
+    {
+      "id": "13",
+      "trackName": "Familiar Echoes Soft",
+      "audioUrl": "https://replicate.delivery/yhqm/08DZZnqz3kptGRloBDd2KoIDn1CSnYz6JtlV01Gg0DeMMdKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:06:03"
+    },
+    {
+      "id": "14",
+      "trackName": "Echoes of a Whisper",
+      "audioUrl": "https://replicate.delivery/yhqm/gN0gUbPp99pSKxlZq8jpWpOYcQLcTQMT8OPhQQsOQgZeMdKLA/out.mp3",
+      "styleId": "electronic",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:07:37"
+    },
+    {
+      "id": "15",
+      "trackName": "Velvet Heartbeat Echoes",
+      "audioUrl": "https://replicate.delivery/yhqm/fTfha3U74niHw0feelhxevX0qLtJPQ3N9PpZwufyncMy7MdKLA/out.mp3",
+      "styleId": "jazz",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:07:37"
+    },
+    {
+      "id": "16",
+      "trackName": "Echoes of the Heart",
+      "audioUrl": "https://replicate.delivery/yhqm/Ow3nBWoahgK9KB6P9DTgczW6x0XMC3lUjfco3asUUL08MdKLA/out.mp3",
+      "styleId": "cinematic",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:07:39"
+    },
+    {
+      "id": "21",
+      "trackName": "Echoed Heartbeat Trace",
+      "audioUrl": "https://replicate.delivery/yhqm/MRUMGIu2cbruEtP8Sv0BTFhraULF81zDVJ0TlLexm2RthdKLA/out.mp3",
+      "styleId": "electronic",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:51:55"
+    },
+    {
+      "id": "22",
+      "trackName": "Velvet Heartbeat Echo",
+      "audioUrl": "https://replicate.delivery/yhqm/6LH9tyDeCl36NC1WNSJP6uu5gKX6zvXRE83i77wIFEVEidKLA/out.mp3",
+      "styleId": "jazz",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:52:41"
+    },
+    {
+      "id": "23",
+      "trackName": "Familiar Echoes Softly",
+      "audioUrl": "https://replicate.delivery/yhqm/orYgqYnplrp4F5mLcGq9VzAA2eSQEbJBm5ih5ZOuK5ndidKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:53:31"
+    },
+    {
+      "id": "24",
+      "trackName": "Echoes of the Heart",
+      "audioUrl": "https://replicate.delivery/yhqm/LRksCJlNmMaWLlyjojb5TxOmrqRudW1NRIqhNUMuCqAPxOlF/out.mp3",
+      "styleId": "cinematic",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 03:53:33"
+    },
+    {
+      "id": "30002",
+      "trackName": "Whispered Melody Remembered",
+      "audioUrl": "https://replicate.delivery/yhqm/jgP2IWkal0I7DdbT92czgsilf433bvgjfTf0EJBfx3trAyTZB/out.mp3",
+      "styleId": "classical",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 05:30:51"
+    },
+    {
+      "id": "30003",
+      "trackName": "Echoes Of You",
+      "audioUrl": "https://replicate.delivery/yhqm/cfb35rZGI9RdLiMWwmb9lZEIskr9ZfzjH0eVLcBYtaCeByTZB/out.mp3",
+      "styleId": "tiktok",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 05:31:11"
+    },
+    {
+      "id": "30006",
+      "trackName": "Heartbeat Rewoven",
+      "audioUrl": "https://replicate.delivery/yhqm/jY1yctyHwFrNAt5fzghfvkdgmV61jkFkDyFZbf0nJUyuh5psA/out.mp3",
+      "styleId": "edm",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 05:48:40"
+    },
+    {
+      "id": "30007",
+      "trackName": "Heartbeat Echoes Deep",
+      "audioUrl": "https://replicate.delivery/yhqm/dyINJCC80vqIHNh4f5wvTRvj0bcco960aTN8Z8tLZKE2YeUWA/out.mp3",
+      "styleId": "edm",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 05:49:35"
+    },
+    {
+      "id": "60003",
+      "trackName": "My Hearts Echo",
+      "audioUrl": "https://replicate.delivery/yhqm/8mtJmgDFqnJxGhPR4Ef9DMwQ9HvHjuJkt9xI5NeyOeehn0TZB/out.mp3",
+      "styleId": "tiktok",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 06:15:23"
+    },
+    {
+      "id": "60004",
+      "trackName": "Familiar Echoes Softly",
+      "audioUrl": "https://replicate.delivery/yhqm/cboB0LG7riLDLtUadmBzzZjPfSflksvHexyfUafUOau7QpnyC/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 06:15:36"
+    },
+    {
+      "id": "60006",
+      "trackName": "Whispered Melody Unveiled",
+      "audioUrl": "https://replicate.delivery/yhqm/MU1O6HeUxDVpPyRQrnzwi9fDKyqyeo5pKDr4DxHEwOZnb6psA/out.mp3",
+      "styleId": "classical",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 06:19:32"
+    },
+    {
+      "id": "60007",
+      "trackName": "Heartbeat Echoes",
+      "audioUrl": "https://replicate.delivery/yhqm/Xv6vBE1ZTOZeNySWztf4SUXnknUgHZzBhfZhcdaOjADCd6psA/out.mp3",
+      "styleId": "tiktok",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 06:20:17"
+    },
+    {
+      "id": "90002",
+      "trackName": "Heartfelt Echoes Softly",
+      "audioUrl": "https://replicate.delivery/yhqm/ld8fdfDhcFkmQ0sHIEeMpJLpYGOfyRxvvfBnma8mEl3iBeRlF/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 18:18:53"
+    },
+    {
+      "id": "90004",
+      "trackName": "Familiar Heartbeat Melody",
+      "audioUrl": "https://replicate.delivery/yhqm/nXr42fipgESNdK5MZ5Sc7mjxsOlH36sEBcjH4JNNJ0JX8jKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-27 18:27:59"
+    },
+    {
+      "id": "120002",
+      "trackName": "Familiar Echoes Softly",
+      "audioUrl": "https://replicate.delivery/yhqm/zWNfXd5MPry2BKrsdHt3znetPkgdQX9ShfFaVBJeT6SiwXVZB/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-28 10:27:22"
+    },
+    {
+      "id": "150002",
+      "trackName": "Familiar Heartbeat Echoes",
+      "audioUrl": "https://replicate.delivery/yhqm/5WoE3DyGTF6FPx5KEPaUa72YbVQxBrMmPVy9fd8R25WJOrKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-28 11:01:40"
+    },
+    {
+      "id": "150004",
+      "trackName": "Familiar Melody Whispers",
+      "audioUrl": "https://replicate.delivery/yhqm/iV2gSA656D6SCRFe3IlWHkZBhKVnuCt8mpP5viQj94N0QrKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-28 11:07:22"
+    },
+    {
+      "id": "180002",
+      "trackName": "Familiar Echoes Softly",
+      "audioUrl": "https://replicate.delivery/yhqm/WCcny3ZaLMbmO1eO3DtdpEKOtEW5Q4UmNr2Yrpda0zcF9tKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-28 17:14:51"
+    },
+    {
+      "id": "180004",
+      "trackName": "Soft Echoes Home",
+      "audioUrl": "https://replicate.delivery/yhqm/IjCnE83VzJZcGhMXlmC7cmjJdOnAnlzFkUc16nrWiVvmftKLA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-28 17:19:23"
+    },
+    {
+      "id": "180006",
+      "trackName": "Soft Echoes Familiar",
+      "audioUrl": "https://replicate.delivery/yhqm/PAoRqAuglh7wHNL2w8f8X2m4u11vKK5MEhafVKeF6tfbxwVZB/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-28 17:34:15"
+    },
+    {
+      "id": "210002",
+      "trackName": "Familiar Echoes Softly",
+      "audioUrl": "https://replicate.delivery/yhqm/jLuSSeC53WTqX61efYSTYlNBbPzKnmiP4nxXp60TCfYFeJtyC/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-29 08:25:06"
+    },
+    {
+      "id": "240002",
+      "trackName": "Quiet Heartbeat Echoes",
+      "audioUrl": "https://replicate.delivery/yhqm/YmBHCiVO4yLoPd4eNqpVPgVbfuAkWJCLyGd6Busf22nIObrsA/out.mp3",
+      "styleId": "lofi",
+      "variant": "faithful",
+      "createdAt": "2026-03-29 13:23:19"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\taudioUrl\tstyleId\tvariant\tcreatedAt\n2\tFamiliar Heartbeat Echoes\thttps://replicate.delivery/yhqm/l0l7dbhRp659AJsh8KadGv1hJb17T0WW00AabCkFZm3HiOlF/out.mp3\tlofi\tfaithful\t2026-03-27 02:49:04\n4\tEchoes of a Heartbeat\thttps://replicate.delivery/yhqm/dv7Nwj3E9vq1IV8MxYJf3YEtFy7cCdXS31cKP6kLXIknEdKLA/out.mp3\tcinematic\tfaithful\t2026-03-27 02:49:51\n6\tVelvet Heartbeat Echoes\thttps://replicate.delivery/yhqm/Zr6veANqecgHOUKUkzMWI1hLARkwgwfju7NzeKsisf3wPRnyC/out.mp3\tjazz\tfaithful\t2026-03-27 02:50:39\n8\tEchoes of Self\thttps://replicate.delivery/yhqm/LRlPIEi1hL6LK1jcudsG34e9RrHe0N2N4efssJYuyO05qoTZB/out.mp3\telectronic\tfaithful\t2026-03-27 02:51:27\n13\tFamiliar Echoes Soft\thttps://replicate.delivery/yhqm/08DZZnqz3kptGRloBDd2KoIDn1CSnYz6JtlV01Gg0DeMMdKLA/out.mp3\tlofi\tfaithful\t2026-03-27 03:06:03\n14\tEchoes of a Whisper\thttps://replicate.delivery/yhqm/gN0gUbPp99pSKxlZq8jpWpOYcQLcTQMT8OPhQQsOQgZeMdKLA/out.mp3\telectronic\tfaithful\t2026-03-27 03:07:37\n15\tVelvet Heartbeat Echoes\thttps://replicate.delivery/yhqm/fTfha3U74niHw0feelhxevX0qLtJPQ3N9PpZwufyncMy7MdKLA/out.mp3\tjazz\tfaithful\t2026-03-27 03:07:37\n16\tEchoes of the Heart\thttps://replicate.delivery/yhqm/Ow3nBWoahgK9KB6P9DTgczW6x0XMC3lUjfco3asUUL08MdKLA/out.mp3\tcinematic\tfaithful\t2026-03-27 03:07:39\n21\tEchoed Heartbeat Trace\thttps://replicate.delivery/yhqm/MRUMGIu2cbruEtP8Sv0BTFhraULF81zDVJ0TlLexm2RthdKLA/out.mp3\telectronic\tfaithful\t2026-03-27 03:51:55\n22\tVelvet Heartbeat Echo\thttps://replicate.delivery/yhqm/6LH9tyDeCl36NC1WNSJP6uu5gKX6zvXRE83i77wIFEVEidKLA/out.mp3\tjazz\tfaithful\t2026-03-27 03:52:41\n23\tFamiliar Echoes Softly\thttps://replicate.delivery/yhqm/orYgqYnplrp4F5mLcGq9VzAA2eSQEbJBm5ih5ZOuK5ndidKLA/out.mp3\tlofi\tfaithful\t2026-03-27 03:53:31\n24\tEchoes of the Heart\thttps://replicate.delivery/yhqm/LRksCJlNmMaWLlyjojb5TxOmrqRudW1NRIqhNUMuCqAPxOlF/out.mp3\tcinematic\tfaithful\t2026-03-27 03:53:33\n30002\tWhispered Melody Remembered\thttps://replicate.delivery/yhqm/jgP2IWkal0I7DdbT92czgsilf433bvgjfTf0EJBfx3trAyTZB/out.mp3\tclassical\tfaithful\t2026-03-27 05:30:51\n30003\tEchoes Of You\thttps://replicate.delivery/yhqm/cfb35rZGI9RdLiMWwmb9lZEIskr9ZfzjH0eVLcBYtaCeByTZB/out.mp3\ttiktok\tfaithful\t2026-03-27 05:31:11\n30006\tHeartbeat Rewoven\thttps://replicate.delivery/yhqm/jY1yctyHwFrNAt5fzghfvkdgmV61jkFkDyFZbf0nJUyuh5psA/out.mp3\tedm\tfaithful\t2026-03-27 05:48:40\n30007\tHeartbeat Echoes Deep\thttps://replicate.delivery/yhqm/dyINJCC80vqIHNh4f5wvTRvj0bcco960aTN8Z8tLZKE2YeUWA/out.mp3\tedm\tfaithful\t2026-03-27 05:49:35\n60003\tMy Hearts Echo\thttps://replicate.delivery/yhqm/8mtJmgDFqnJxGhPR4Ef9DMwQ9HvHjuJkt9xI5NeyOeehn0TZB/out.mp3\ttiktok\tfaithful\t2026-03-27 06:15:23\n60004\tFamiliar Echoes Softly\thttps://replicate.delivery/yhqm/cboB0LG7riLDLtUadmBzzZjPfSflksvHexyfUafUOau7QpnyC/out.mp3\tlofi\tfaithful\t2026-03-27 06:15:36\n60006\tWhispered Melody Unveiled\thttps://replicate.delivery/yhqm/MU1O6HeUxDVpPyRQrnzwi9fDKyqyeo5pKDr4DxHEwOZnb6psA/out.mp3\tclassical\tfaithful\t2026-03-27 06:19:32\n60007\tHeartbeat Echoes\thttps://replicate.delivery/yhqm/Xv6vBE1ZTOZeNySWztf4SUXnknUgHZzBhfZhcdaOjADCd6psA/out.mp3\ttiktok\tfaithful\t2026-03-27 06:20:17\n90002\tHeartfelt Echoes Softly\thttps://replicate.delivery/yhqm/ld8fdfDhcFkmQ0sHIEeMpJLpYGOfyRxvvfBnma8mEl3iBeRlF/out.mp3\tlofi\tfaithful\t2026-03-27 18:18:53\n90004\tFamiliar Heartbeat Melody\thttps://replicate.delivery/yhqm/nXr42fipgESNdK5MZ5Sc7mjxsOlH36sEBcjH4JNNJ0JX8jKLA/out.mp3\tlofi\tfaithful\t2026-03-27 18:27:59\n120002\tFamiliar Echoes Softly\thttps://replicate.delivery/yhqm/zWNfXd5MPry2BKrsdHt3znetPkgdQX9ShfFaVBJeT6SiwXVZB/out.mp3\tlofi\tfaithful\t2026-03-28 10:27:22\n150002\tFamiliar Heartbeat Echoes\thttps://replicate.delivery/yhqm/5WoE3DyGTF6FPx5KEPaUa72YbVQxBrMmPVy9fd8R25WJOrKLA/out.mp3\tlofi\tfaithful\t2026-03-28 11:01:40\n150004\tFamiliar Melody Whispers\thttps://replicate.delivery/yhqm/iV2gSA656D6SCRFe3IlWHkZBhKVnuCt8mpP5viQj94N0QrKLA/out.mp3\tlofi\tfaithful\t2026-03-28 11:07:22\n180002\tFamiliar Echoes Softly\thttps://replicate.delivery/yhqm/WCcny3ZaLMbmO1eO3DtdpEKOtEW5Q4UmNr2Yrpda0zcF9tKLA/out.mp3\tlofi\tfaithful\t2026-03-28 17:14:51\n180004\tSoft Echoes Home\thttps://replicate.delivery/yhqm/IjCnE83VzJZcGhMXlmC7cmjJdOnAnlzFkUc16nrWiVvmftKLA/out.mp3\tlofi\tfaithful\t2026-03-28 17:19:23\n180006\tSoft Echoes Familiar\thttps://replicate.delivery/yhqm/PAoRqAuglh7wHNL2w8f8X2m4u11vKK5MEhafVKeF6tfbxwVZB/out.mp3\tlofi\tfaithful\t2026-03-28 17:34:15\n210002\tFamiliar Echoes Softly\thttps://replicate.delivery/yhqm/jLuSSeC53WTqX61efYSTYlNBbPzKnmiP4nxXp60TCfYFeJtyC/out.mp3\tlofi\tfaithful\t2026-03-29 08:25:06\n240002\tQuiet Heartbeat Echoes\thttps://replicate.delivery/yhqm/YmBHCiVO4yLoPd4eNqpVPgVbfuAkWJCLyGd6Busf22nIObrsA/out.mp3\tlofi\tfaithful\t2026-03-29 13:23:19\n",
+  "stderr": "",
+  "execution_time_ms": 1563
+}
