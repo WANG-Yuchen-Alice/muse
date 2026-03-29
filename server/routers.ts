@@ -300,7 +300,6 @@ async function generateAISceneVideo(
     config: {
       aspectRatio: "9:16",
       numberOfVideos: 1,
-      personGeneration: "dont_allow",
     },
   });
 

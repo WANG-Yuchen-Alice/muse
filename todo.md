@@ -107,3 +107,4 @@
 - [x] Feature: Gallery tracks — show existing video if previously generated
 - [x] Feature: Gallery tracks — enable Download/Share Video buttons when video exists
 - [x] Bug: Generate AI Music Video is broken — fixed: removed unsupported generateAudio parameter from Veo config
+- [x] Bug: Veo API rejects personGeneration: "dont_allow" — removed unsupported parameter
