@@ -136,3 +136,6 @@
 - [x] Fix MusicGen pipeline to always upload audio to S3 after generation (prevent future expiry)
 - [x] Add step-by-step video generation progress indicator (replace "2-5 min" with actual steps)
 - [x] Remove "2-5 min" estimate, show real progress steps instead
+- [x] Bug: Veo extension fails — added 10s processing delay, retry logic with backoff, graceful fallback to loop
+- [x] Fix: FFmpeg timeout increased from 120s to 300s, ultrafast preset, 720p portrait output
+- [x] Fix: Rate limit (429) errors now show user-friendly message instead of raw error dump

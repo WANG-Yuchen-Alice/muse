@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, name, audio_url, status FROM tracks WHERE audio_url LIKE '%cloudfront%' AND status != 'expired' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, name, audio_url, status FROM tracks WHERE audio_url LIKE '%cloudfront%' AND status != 'expired' LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'audio_url' in 'where clause'"
+  ]
+}
