@@ -139,3 +139,10 @@
 - [x] Bug: Veo extension fails — added 10s processing delay, retry logic with backoff, graceful fallback to loop
 - [x] Fix: FFmpeg timeout increased from 120s to 300s, ultrafast preset, 720p portrait output
 - [x] Fix: Rate limit (429) errors now show user-friendly message instead of raw error dump
+- [x] Migrate video generation from Veo to Hailuo 2.3 (Veo unreliable: rate limits, extension failures)
+- [x] Hailuo 2.3 integration: 10s segments at 768p, cover art as first frame, 9:16 portrait
+- [x] Fix FFmpeg binary path resolution (falls back to system /usr/bin/ffmpeg)
+- [x] Fix prompt variety bug: LLM now generates distinct scene descriptions per segment
+- [x] End-to-end Hailuo pipeline verified: 4 segments + FFmpeg merge + S3 upload (8.8MB final video)
+- [x] Network error recovery: TLS disconnects retried and recovered automatically
+- [x] All 26 vitest tests pass after Hailuo migration

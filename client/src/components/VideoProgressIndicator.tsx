@@ -2,22 +2,22 @@
  * VideoProgressIndicator — Step-by-step progress for video generation.
  *
  * Shows which step the video generation is on with animated progress.
- * Steps: Analyzing audio → Writing scene → Generating video → Extending → Merging audio → Uploading
+ * Steps: Analyzing audio → Writing scenes → Generating clips → Downloading → Merging → Uploading
  *
  * Since the backend is a single long mutation, we simulate progress on the client
- * based on typical timing. The steps and durations are calibrated to real Veo timings.
+ * based on typical timing. Calibrated to Hailuo 2.3 via Replicate timings (~90s per clip).
  */
 import { useState, useEffect, useRef } from "react";
 import { Progress } from "@/components/ui/progress";
-import { Music, PenTool, Film, Layers, Merge, Upload, Loader2, Check } from "lucide-react";
+import { Music, PenTool, Film, Download, Merge, Upload, Loader2, Check } from "lucide-react";
 
 const STEPS = [
   { id: "analyze", label: "Analyzing audio", icon: Music, duration: 3 },
-  { id: "prompt", label: "Writing scene", icon: PenTool, duration: 5 },
-  { id: "generate", label: "Generating video", icon: Film, duration: 40 },
-  { id: "extend", label: "Extending to match audio", icon: Layers, duration: 30 },
-  { id: "merge", label: "Merging audio + video", icon: Merge, duration: 10 },
-  { id: "upload", label: "Uploading final video", icon: Upload, duration: 5 },
+  { id: "prompt", label: "Writing scene descriptions", icon: PenTool, duration: 5 },
+  { id: "generate", label: "Generating video clips", icon: Film, duration: 40 },
+  { id: "download", label: "Downloading clips", icon: Download, duration: 5 },
+  { id: "merge", label: "Merging audio + video", icon: Merge, duration: 8 },
+  { id: "upload", label: "Uploading final video", icon: Upload, duration: 4 },
 ];
 
 const TOTAL_DURATION = STEPS.reduce((sum, s) => sum + s.duration, 0);
@@ -55,7 +55,7 @@ export default function VideoProgressIndicator({ active }: { active: boolean }) 
     if (i === STEPS.length - 1) currentStepIdx = STEPS.length - 1;
   }
 
-  // If elapsed exceeds total, stay on last step
+  // If elapsed exceeds total, stay on last step with a "still working" message
   if (elapsed >= TOTAL_DURATION) {
     currentStepIdx = STEPS.length - 1;
   }
@@ -63,12 +63,9 @@ export default function VideoProgressIndicator({ active }: { active: boolean }) 
   // Calculate progress within current step
   let stepElapsed = elapsed - cumulative;
   if (stepElapsed < 0) stepElapsed = 0;
-  const stepProgress = Math.min(100, (stepElapsed / STEPS[currentStepIdx].duration) * 100);
 
   // Overall progress (capped at 95% to avoid showing 100% before actually done)
   const overallProgress = Math.min(95, (elapsed / TOTAL_DURATION) * 100);
-
-  const CurrentIcon = STEPS[currentStepIdx].icon;
 
   return (
     <div className="flex flex-col gap-3 py-2">
@@ -81,7 +78,6 @@ export default function VideoProgressIndicator({ active }: { active: boolean }) 
           const StepIcon = step.icon;
           const isDone = i < currentStepIdx;
           const isCurrent = i === currentStepIdx;
-          const isPending = i > currentStepIdx;
 
           return (
             <div
@@ -111,6 +107,13 @@ export default function VideoProgressIndicator({ active }: { active: boolean }) 
           );
         })}
       </div>
+
+      {/* Show "still working" if past estimated time */}
+      {elapsed >= TOTAL_DURATION && (
+        <p className="text-[10px] text-muted-foreground/60 text-center">
+          Still working... almost there
+        </p>
+      )}
     </div>
   );
 }

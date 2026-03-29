@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, trackName, audioUrl, status FROM tracks WHERE status != 'expired' AND audioUrl LIKE '%cloudfront%' LIMIT 3",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, audioUrl, status FROM tracks WHERE status != 'expired' AND audioUrl LIKE '%cloudfront%' LIMIT 3",
+  "rows": [
+    {
+      "id": "1",
+      "trackName": "Drifting Through Starlight",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/GudqteyMnyScG3FrYJuRG.mp3",
+      "status": "done"
+    },
+    {
+      "id": "3",
+      "trackName": "Unfolding Starlight Symphony",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/IBh7k2STfG9cNX7XzdflZ.mp3",
+      "status": "done"
+    },
+    {
+      "id": "5",
+      "trackName": "Azure Horizon Shift",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/Z1v7smF9DrO0lW7BmnsG4.mp3",
+      "status": "done"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\taudioUrl\tstatus\n1\tDrifting Through Starlight\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/GudqteyMnyScG3FrYJuRG.mp3\tdone\n3\tUnfolding Starlight Symphony\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/IBh7k2STfG9cNX7XzdflZ.mp3\tdone\n5\tAzure Horizon Shift\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/Z1v7smF9DrO0lW7BmnsG4.mp3\tdone\n",
+  "stderr": "",
+  "execution_time_ms": 1589
+}

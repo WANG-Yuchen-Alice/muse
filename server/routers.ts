@@ -24,8 +24,12 @@ const execFileAsync = promisify(execFile);
 
 // Use static binaries for ffmpeg/ffprobe (works in deployed environments)
 // ffmpeg-static exports the path as default, ffprobe-static exports { path }
-const FFMPEG = ffmpegPath || "ffmpeg";
-const FFPROBE = (ffprobePath as any)?.path || (typeof ffprobePath === "string" ? ffprobePath : "ffprobe");
+// Check if the static binary actually exists; fall back to system binary if not
+import { existsSync } from "fs";
+const FFMPEG = (ffmpegPath && existsSync(ffmpegPath)) ? ffmpegPath : "ffmpeg";
+const _ffprobePath = (ffprobePath as any)?.path || (typeof ffprobePath === "string" ? ffprobePath : null);
+const FFPROBE = (_ffprobePath && existsSync(_ffprobePath)) ? _ffprobePath : "ffprobe";
+console.log(`[FFmpeg] Using: ${FFMPEG}, ffprobe: ${FFPROBE}`);
 
 const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY ?? "";
 const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY ?? "";
@@ -272,85 +276,126 @@ const VIDEO_SCENE_PROMPTS: Record<string, string> = {
   edm: "A massive outdoor music festival at night. Hundreds of laser beams cut through fog in every direction. Giant LED screens pulse with geometric patterns. The camera flies over a sea of silhouettes with raised hands. Euphoric energy, vivid neon colors.",
 };
 
-async function generateVideoPrompt(
+// Generate multiple scene prompts for Kling multi-segment video
+async function generateVideoPrompts(
   styleId: string,
   styleName: string,
   trackName: string,
+  count: number,
   melodyDesc?: string
-): Promise<string> {
-  // Use the pre-defined scene prompt as a base, optionally enhanced by LLM
+): Promise<string[]> {
   const basePrompt = VIDEO_SCENE_PROMPTS[styleId] ?? VIDEO_SCENE_PROMPTS.lofi;
-  
+
   try {
     const response = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: `You are a creative video director. Given a base scene description and a music track context, enhance the scene description to be more vivid and specific. Keep it under 200 words. Output ONLY the enhanced scene description, nothing else. The video should feel like a real cinematic scene, not a music visualizer. Make it feel like an open-world exploration or a cinematic short film.`,
+          content: `You are a creative video director. Generate ${count} distinct but thematically connected scene descriptions for a music video. Each scene should be a vivid, cinematic description suitable for AI video generation (Kling 3.0). Each scene should be 1-3 sentences, under 100 words. They should flow naturally as a visual narrative. Output ONLY a JSON array of strings, nothing else. Example: ["Scene 1 description", "Scene 2 description"]`,
         },
         {
           role: "user",
-          content: `Base scene: ${basePrompt}\n\nMusic context: Track "${trackName}" in ${styleName} style.${melodyDesc ? ` Melody: ${melodyDesc}` : ""}\n\nEnhance this scene description for AI video generation. Make it cinematic and immersive.`,
+          content: `Base visual theme: ${basePrompt}\n\nMusic context: Track "${trackName}" in ${styleName} style.${melodyDesc ? ` Melody: ${melodyDesc}` : ""}\n\nGenerate ${count} cinematic scene descriptions that tell a visual story matching this music.`,
         },
       ],
     });
     const raw = response.choices?.[0]?.message?.content;
-    const enhanced = typeof raw === "string" ? raw.trim() : "";
-    return enhanced.length > 20 ? enhanced : basePrompt;
-  } catch {
-    return basePrompt;
-  }
-}
-
-// Helper: poll a Veo operation until done
-async function pollVeoOperation(operation: any, label: string, maxPolls = 60): Promise<any> {
-  for (let i = 0; i < maxPolls; i++) {
-    // Check if done
-    if (operation.done) {
-      // Check for error in completed operation
-      if (operation.error) {
-        throw new Error(`Veo ${label} failed: ${JSON.stringify(operation.error)}`);
+    console.log(`[VideoPrompts] LLM raw response (first 500 chars): ${raw?.slice(0, 500)}`);
+    if (typeof raw === "string") {
+      // Try to extract JSON array from the response (may have markdown fences)
+      const jsonMatch = raw.match(/\[\s*"[\s\S]*?\]/)?.[0] || raw.trim();
+      try {
+        const parsed = JSON.parse(jsonMatch);
+        if (Array.isArray(parsed) && parsed.length >= count) {
+          console.log(`[VideoPrompts] Successfully parsed ${parsed.length} prompts`);
+          return parsed.slice(0, count).map(String);
+        }
+        console.log(`[VideoPrompts] Parsed but got ${Array.isArray(parsed) ? parsed.length : 'non-array'} items, need ${count}`);
+      } catch (parseErr) {
+        console.log(`[VideoPrompts] JSON parse failed: ${parseErr}`);
       }
-      return operation;
     }
-    // Also check for error field even if not "done" (some errors come back immediately)
-    if (operation.error) {
-      throw new Error(`Veo ${label} failed: ${JSON.stringify(operation.error)}`);
-    }
-    console.log(`[Veo] ${label} polling... attempt ${i + 1}/${maxPolls}`);
-    await new Promise((r) => setTimeout(r, 5000));
-    try {
-      operation = await genai.operations.getVideosOperation({ operation });
-    } catch (pollErr: any) {
-      console.error(`[Veo] ${label} polling error:`, pollErr?.message || pollErr);
-      // If it's a transient error, keep polling
-      if (i < maxPolls - 1) continue;
-      throw new Error(`Veo ${label} polling failed: ${pollErr?.message || "unknown error"}`);
-    }
+  } catch (llmErr) {
+    console.error(`[VideoPrompts] LLM call failed: ${llmErr}`);
   }
-  if (!operation.done) throw new Error(`Veo ${label} timed out after ${maxPolls * 5}s`);
-  if (operation.error) throw new Error(`Veo ${label} failed: ${JSON.stringify(operation.error)}`);
-  return operation;
+  // Fallback: use the base prompt for all segments
+  console.log(`[VideoPrompts] Using fallback base prompt for all ${count} segments`);
+  return Array(count).fill(basePrompt);
 }
 
-// Helper: download a Veo generated video to a local file, return the path
-async function downloadVeoVideo(operation: any): Promise<string> {
-  const generatedVideos = operation.response?.generatedVideos;
-  if (!generatedVideos || generatedVideos.length === 0) {
-    throw new Error("Veo did not return any generated videos");
-  }
-  const video = generatedVideos[0].video;
-  if (!video) throw new Error("Veo generated video has no video data");
+// Hailuo 2.3 model on Replicate — fast, reliable video generation (~90s per clip)
+const HAILUO_MODEL = "minimax/hailuo-2.3";
 
-  const localPath = path.join(tmpdir(), `muse-veo-${nanoid()}.mp4`);
+// Helper: run a Hailuo prediction on Replicate and poll until done
+async function runHailuoPrediction(input: Record<string, any>, label: string): Promise<string> {
+  console.log(`[Hailuo] Starting ${label}...`);
 
-  if (video.videoBytes) {
-    await writeFile(localPath, Buffer.from(video.videoBytes, "base64"));
-  } else if (video.uri) {
-    await genai.files.download({ file: video, downloadPath: localPath });
-  } else {
-    throw new Error("Veo video has neither videoBytes nor URI");
+  // Create prediction using model name endpoint
+  const createRes = await axios.post(
+    `https://api.replicate.com/v1/models/${HAILUO_MODEL}/predictions`,
+    { input },
+    {
+      headers: {
+        Authorization: `Bearer ${REPLICATE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const predictionId = createRes.data.id;
+  console.log(`[Hailuo] ${label} prediction created: ${predictionId}`);
+
+  // Poll for completion (Hailuo takes ~60-120 seconds per clip)
+  const maxPolls = 60; // 60 * 5s = 5 minutes max
+  let consecutiveErrors = 0;
+  const MAX_CONSECUTIVE_ERRORS = 5;
+
+  for (let i = 0; i < maxPolls; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+
+    let pollRes;
+    try {
+      pollRes = await axios.get(
+        `https://api.replicate.com/v1/predictions/${predictionId}`,
+        { headers: { Authorization: `Bearer ${REPLICATE_API_KEY}` }, timeout: 30000 }
+      );
+      consecutiveErrors = 0;
+    } catch (pollErr: any) {
+      consecutiveErrors++;
+      console.warn(`[Hailuo] ${label} polling error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}): ${pollErr?.message || pollErr}`);
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        throw new Error(`Hailuo ${label} polling failed after ${MAX_CONSECUTIVE_ERRORS} consecutive errors: ${pollErr?.message}`);
+      }
+      await new Promise((r) => setTimeout(r, 5000));
+      continue;
+    }
+
+    const status = pollRes.data.status;
+
+    if (i % 4 === 0) {
+      console.log(`[Hailuo] ${label} polling... attempt ${i + 1}/${maxPolls}, status: ${status}`);
+    }
+
+    if (status === "succeeded") {
+      const output = pollRes.data.output;
+      if (!output) throw new Error(`Hailuo ${label} succeeded but no output`);
+      const videoUrl = typeof output === "string" ? output : (output.url ? output.url() : String(output));
+      console.log(`[Hailuo] ${label} completed successfully`);
+      return videoUrl;
+    }
+    if (status === "failed" || status === "canceled") {
+      const error = pollRes.data.error || "unknown error";
+      throw new Error(`Hailuo ${label} ${status}: ${error}`);
+    }
   }
+  throw new Error(`Hailuo ${label} timed out after ${maxPolls * 5}s`);
+}
+
+// Helper: download a video from URL to a local temp file
+async function downloadVideoToFile(videoUrl: string): Promise<string> {
+  const localPath = path.join(tmpdir(), `muse-hailuo-${nanoid()}.mp4`);
+  const resp = await axios.get(videoUrl, { responseType: "arraybuffer", timeout: 120000 });
+  await writeFile(localPath, Buffer.from(resp.data));
   return localPath;
 }
 
@@ -404,6 +449,7 @@ async function generateAISceneVideo(
   styleId: string,
   styleName: string,
   audioUrl: string,
+  imageUrl?: string,
   melodyDesc?: string
 ): Promise<string> {
   const id = nanoid();
@@ -417,159 +463,94 @@ async function generateAISceneVideo(
     try {
       audioResp = await axios.get(audioUrl, { responseType: "arraybuffer" });
     } catch (err: any) {
-      if (err?.response?.status === 404) {
+      if (err?.response?.status === 404 || err?.response?.status === 403) {
         throw new Error("Audio file has expired or is no longer available. Please generate a new track first.");
       }
       throw new Error(`Failed to download audio: ${err?.message || "unknown error"}`);
     }
     await writeFile(audioPath, Buffer.from(audioResp.data));
     const audioDuration = await getAudioDuration(audioPath);
-    console.log(`[Veo] Audio duration: ${audioDuration}s`);
+    console.log(`[Hailuo] Audio duration: ${audioDuration}s`);
 
-    // ── Step 2: Generate enhanced video prompt ──
-    const videoPrompt = await generateVideoPrompt(styleId, styleName, trackName, melodyDesc);
-    console.log(`[Veo] Generating video for "${trackName}" (${styleName}):`, videoPrompt.slice(0, 100) + "...");
+    // ── Step 2: Plan segments ──
+    // Hailuo 2.3 generates 6s (1080p) or 10s (768p) clips. Use 768p for longer clips.
+    const SEGMENT_DURATION = 10; // 10s at 768p resolution
+    const segmentCount = Math.max(1, Math.ceil(audioDuration / SEGMENT_DURATION));
+    console.log(`[Hailuo] Plan: ${segmentCount} segment(s) of ${SEGMENT_DURATION}s each for ${audioDuration}s audio`);
 
-    // ── Step 3: Generate initial 8s Veo video ──
-    // Generate at 16:9 landscape — Veo extensions reliably support 16:9.
-    // We'll crop to 9:16 portrait in the final FFmpeg merge step.
-    let operation: any;
-    try {
-      operation = await genai.models.generateVideos({
-        model: "veo-3.1-generate-preview",
-        prompt: videoPrompt,
-        config: {
-          aspectRatio: "16:9",
-          numberOfVideos: 1,
-        },
-      });
-      operation = await pollVeoOperation(operation, "initial generation");
-    } catch (genErr: any) {
-      const errMsg = genErr?.message || String(genErr);
-      if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota")) {
-        throw new Error("Video generation is temporarily unavailable due to high demand. Please try again in a few minutes.");
-      }
-      throw new Error(`Video generation failed: ${errMsg.slice(0, 200)}`);
-    }
+    // ── Step 3: Generate scene prompts ──
+    const prompts = await generateVideoPrompts(styleId, styleName, trackName, segmentCount, melodyDesc);
+    console.log(`[Hailuo] Generated ${prompts.length} prompts for "${trackName}" (${styleName})`);
 
-    // ── Step 4: Extend video to match audio duration ──
-    // Each extension adds ~7 seconds. Max 20 extensions (148s total).
-    // Known issue: Veo sometimes rejects extensions with "Input video must be
-    // a video that was generated by VEO that has been processed." — we add
-    // a processing delay and retry logic, then fall back to looping if needed.
-    const MAX_EXTENSIONS = 20;
-    const MAX_RETRIES = 2;
-    let extensionCount = 0;
-    let currentVideo = operation.response?.generatedVideos?.[0]?.video;
-    let estimatedDuration = 8; // Initial Veo video is ~8s
-    let extensionFailed = false;
+    // ── Step 4: Generate video clips with Hailuo 2.3 ──
+    // Generate all segments (sequentially to avoid rate limits)
+    const segmentUrls: string[] = [];
+    for (let i = 0; i < segmentCount; i++) {
+      const prompt = prompts[i] || prompts[0];
+      console.log(`[Hailuo] Generating segment ${i + 1}/${segmentCount} (${SEGMENT_DURATION}s): ${prompt.slice(0, 80)}...`);
 
-    // Wait for the initial video to be fully "processed" by Veo before extending
-    console.log(`[Veo] Waiting 10s for initial video to be processed before extending...`);
-    await new Promise((r) => setTimeout(r, 10000));
-
-    while (estimatedDuration < audioDuration && extensionCount < MAX_EXTENSIONS && !extensionFailed) {
-      console.log(`[Veo] Extending video (${extensionCount + 1}): ~${estimatedDuration}s → need ${audioDuration}s`);
-
-      let extOp: any = null;
-      let succeeded = false;
-
-      for (let retry = 0; retry <= MAX_RETRIES; retry++) {
-        try {
-          if (retry > 0) {
-            // Wait longer before retrying — the video may need more processing time
-            const retryDelay = retry * 15000;
-            console.log(`[Veo] Retry ${retry}/${MAX_RETRIES} for extension ${extensionCount + 1}, waiting ${retryDelay / 1000}s...`);
-            await new Promise((r) => setTimeout(r, retryDelay));
-          }
-          extOp = await genai.models.generateVideos({
-            model: "veo-3.1-generate-preview",
-            video: currentVideo,
-            prompt: videoPrompt,
-            config: {
-              numberOfVideos: 1,
-            },
-          });
-          extOp = await pollVeoOperation(extOp, `extension ${extensionCount + 1}`);
-          succeeded = true;
-          break;
-        } catch (extErr: any) {
-          const errMsg = extErr?.message || String(extErr);
-          console.warn(`[Veo] Extension ${extensionCount + 1} attempt ${retry + 1} failed: ${errMsg}`);
-          if (errMsg.includes("INVALID_ARGUMENT") || errMsg.includes("processed")) {
-            // This is the known "not processed" error — retry with delay
-            if (retry >= MAX_RETRIES) {
-              console.warn(`[Veo] Extension failed after ${MAX_RETRIES + 1} attempts, falling back to loop`);
-              extensionFailed = true;
-            }
-          } else {
-            // Unknown error — don't retry
-            console.warn(`[Veo] Extension failed with unexpected error, falling back to loop`);
-            extensionFailed = true;
-            break;
-          }
+      try {
+        const hailuoInput: Record<string, any> = {
+          prompt,
+          duration: SEGMENT_DURATION,
+          resolution: "768p",
+          prompt_optimizer: true,
+        };
+        // Use cover image as first frame for 9:16 aspect ratio (only for first segment)
+        if (imageUrl && i === 0) {
+          hailuoInput.first_frame_image = imageUrl;
         }
-      }
-
-      if (!succeeded || !extOp) break;
-
-      const extVideo = extOp.response?.generatedVideos?.[0]?.video;
-      if (!extVideo) {
-        console.warn(`[Veo] Extension ${extensionCount + 1} returned no video, stopping extensions`);
+        const videoUrl = await runHailuoPrediction(
+          hailuoInput,
+          `segment ${i + 1}/${segmentCount}`
+        );
+        segmentUrls.push(videoUrl);
+      } catch (segErr: any) {
+        const errMsg = segErr?.message || String(segErr);
+        console.error(`[Hailuo] Segment ${i + 1} failed: ${errMsg}`);
+        if (segmentUrls.length === 0) {
+          // First segment failed — no video at all
+          if (errMsg.includes("rate") || errMsg.includes("limit") || errMsg.includes("quota") || errMsg.includes("Queue")) {
+            throw new Error("Video generation is temporarily unavailable due to high demand. Please try again in a few minutes.");
+          }
+          throw new Error(`Video generation failed: ${errMsg.slice(0, 200)}`);
+        }
+        // We have at least one segment — continue with what we have
+        console.warn(`[Hailuo] Continuing with ${segmentUrls.length} segments (will loop to fill)`);
         break;
       }
-      currentVideo = extVideo;
-      estimatedDuration += 7; // Each extension adds ~7s
-      extensionCount++;
-
-      // Wait between extensions to let the video be processed
-      if (estimatedDuration < audioDuration) {
-        console.log(`[Veo] Waiting 8s between extensions for processing...`);
-        await new Promise((r) => setTimeout(r, 8000));
-      }
     }
 
-    console.log(`[Veo] Final video: ~${estimatedDuration}s after ${extensionCount} extensions${extensionFailed ? " (extension failed, will loop)" : ""}`);
-    if (extensionFailed && extensionCount === 0) {
-      console.log(`[Veo] No extensions succeeded — will loop the initial 8s video to match audio`);
+    console.log(`[Hailuo] Generated ${segmentUrls.length}/${segmentCount} segments successfully`);
+
+    // ── Step 5: Download all segment videos ──
+    const segmentPaths: string[] = [];
+    for (let i = 0; i < segmentUrls.length; i++) {
+      console.log(`[Hailuo] Downloading segment ${i + 1}/${segmentUrls.length}...`);
+      const segPath = await downloadVideoToFile(segmentUrls[i]);
+      tempFiles.push(segPath);
+      segmentPaths.push(segPath);
     }
 
-    // ── Step 5: Download the final extended video ──
-    // Build a fake operation-like object for downloadVeoVideo
-    const finalOp = {
-      response: {
-        generatedVideos: [{ video: currentVideo }],
-      },
-    };
-    const videoPath = await downloadVeoVideo(finalOp);
-    tempFiles.push(videoPath);
-
-    // ── Step 6: Get actual video duration ──
-    const actualVideoDuration = await getVideoDuration(videoPath);
-    console.log(`[Veo] Actual video duration: ${actualVideoDuration}s, audio: ${audioDuration}s`);
-
-    // ── Step 7: FFmpeg merge — combine video + audio into final MP4 ──
+    // ── Step 6: FFmpeg merge — concat segments + add audio ──
     const outputPath = path.join(tmpdir(), `muse-final-${id}.mp4`);
     tempFiles.push(outputPath);
+    const ffmpegTimeout = 300000; // 5 minutes
 
-    // Crop from 16:9 landscape to 9:16 portrait (center crop) + merge audio
-    // Use 720x1280 (720p portrait) for faster encoding and smaller file size
-    const cropFilter = "scale=-2:1280,crop=720:1280";
-    // Generous timeout: 5 minutes for encoding (0.19x speed on 30s = ~160s, plus margin)
-    const ffmpegTimeout = 300000;
+    if (segmentPaths.length === 1) {
+      // Single segment — loop to match audio duration, add audio
+      const segDuration = await getVideoDuration(segmentPaths[0]);
+      const loopCount = Math.ceil(audioDuration / segDuration);
+      console.log(`[Hailuo] Single segment (${segDuration.toFixed(1)}s), looping ${loopCount}x for ${audioDuration.toFixed(1)}s audio`);
 
-    console.log(`[Veo] Starting FFmpeg merge: video=${actualVideoDuration.toFixed(1)}s, audio=${audioDuration.toFixed(1)}s, loop=${actualVideoDuration < audioDuration}`);
-
-    if (actualVideoDuration >= audioDuration) {
-      // Video is longer or equal — trim video to audio length, crop to portrait, replace audio
       await execFileAsync(FFMPEG, [
         "-y",
-        "-i", videoPath,
+        "-stream_loop", String(loopCount - 1),
+        "-i", segmentPaths[0],
         "-i", audioPath,
         "-t", String(audioDuration),
         "-map", "0:v:0",
         "-map", "1:a:0",
-        "-vf", cropFilter,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
         "-pix_fmt", "yuv420p",
@@ -578,18 +559,42 @@ async function generateAISceneVideo(
         outputPath,
       ], { timeout: ffmpegTimeout });
     } else {
-      // Video is shorter — loop video to match audio length, crop to portrait, then add audio
-      const loopCount = Math.ceil(audioDuration / actualVideoDuration);
-      console.log(`[Veo] Looping video ${loopCount}x to cover ${audioDuration.toFixed(1)}s`);
+      // Multiple segments — create concat list, merge, add audio
+      const concatListPath = path.join(tmpdir(), `muse-concat-${id}.txt`);
+      tempFiles.push(concatListPath);
+
+      // Calculate total video duration from segments
+      let totalSegDuration = 0;
+      for (const sp of segmentPaths) {
+        totalSegDuration += await getVideoDuration(sp);
+      }
+
+      // If total segment duration < audio, loop the last segment to fill
+      const concatLines: string[] = [];
+      for (const sp of segmentPaths) {
+        concatLines.push(`file '${sp}'`);
+      }
+      if (totalSegDuration < audioDuration) {
+        const lastSeg = segmentPaths[segmentPaths.length - 1];
+        const lastSegDur = await getVideoDuration(lastSeg);
+        const extraLoops = Math.ceil((audioDuration - totalSegDuration) / lastSegDur);
+        for (let i = 0; i < extraLoops; i++) {
+          concatLines.push(`file '${lastSeg}'`);
+        }
+      }
+      await writeFile(concatListPath, concatLines.join("\n"));
+
+      console.log(`[Hailuo] Concatenating ${segmentPaths.length} segments (total ~${totalSegDuration.toFixed(1)}s) + audio (${audioDuration.toFixed(1)}s)`);
+
       await execFileAsync(FFMPEG, [
         "-y",
-        "-stream_loop", String(loopCount - 1),
-        "-i", videoPath,
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concatListPath,
         "-i", audioPath,
         "-t", String(audioDuration),
         "-map", "0:v:0",
         "-map", "1:a:0",
-        "-vf", cropFilter,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
         "-pix_fmt", "yuv420p",
@@ -598,13 +603,13 @@ async function generateAISceneVideo(
         outputPath,
       ], { timeout: ffmpegTimeout });
     }
-    console.log(`[Veo] FFmpeg merge completed successfully`);
+    console.log(`[Hailuo] FFmpeg merge completed successfully`);
 
-    // ── Step 8: Upload final MP4 to S3 ──
+    // ── Step 7: Upload final MP4 to S3 ──
     const finalBuffer = await readFile(outputPath);
     const key = `videos/music-video-${id}.mp4`;
     const { url } = await storagePut(key, finalBuffer, "video/mp4");
-    console.log(`[Veo] Final music video uploaded: ${url} (${(finalBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
+    console.log(`[Hailuo] Final music video uploaded: ${url} (${(finalBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
     return url;
 
   } finally {
@@ -1092,7 +1097,7 @@ Rules:
         return { url, filename: `${(input.trackName ?? "muse-track").replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "-")}.mp4` };
       }),
 
-    /** Generate a 9:16 AI scene video using Gemini Veo */
+    /** Generate a 9:16 AI scene video using Kling 3.0 via Replicate */
     generateVideo: publicProcedure
       .input(z.object({
         audioUrl: z.string(),
@@ -1107,12 +1112,13 @@ Rules:
         const trackName = input.trackName || "Untitled";
         const styleName = style?.name || input.styleId;
 
-        // Generate AI scene video with Veo + merge with audio
+        // Generate AI scene video with Hailuo 2.3 + merge with audio
         const videoUrl = await generateAISceneVideo(
           trackName,
           input.styleId,
           styleName,
           input.audioUrl,
+          input.imageUrl,
           input.melodyDescription,
         );
 

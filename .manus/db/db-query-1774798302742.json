@@ -1,0 +1,31 @@
+{
+  "query": "SELECT id, trackName, audioUrl, imageUrl, styleId FROM tracks WHERE status != 'expired' AND audioUrl IS NOT NULL AND imageUrl IS NOT NULL LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user cfmHsC6aGJ6LFq6.52eb6562a0dd --database VBztMERnZXrMaUjwVoLUNH --execute SELECT id, trackName, audioUrl, imageUrl, styleId FROM tracks WHERE status != 'expired' AND audioUrl IS NOT NULL AND imageUrl IS NOT NULL LIMIT 3;",
+  "rows": [
+    {
+      "id": "1",
+      "trackName": "Drifting Through Starlight",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/GudqteyMnyScG3FrYJuRG.mp3",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/1774579711733.png",
+      "styleId": "lofi"
+    },
+    {
+      "id": "3",
+      "trackName": "Unfolding Starlight Symphony",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/IBh7k2STfG9cNX7XzdflZ.mp3",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/1774579759173.png",
+      "styleId": "cinematic"
+    },
+    {
+      "id": "5",
+      "trackName": "Azure Horizon Shift",
+      "audioUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/Z1v7smF9DrO0lW7BmnsG4.mp3",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/1774579805623.png",
+      "styleId": "jazz"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttrackName\taudioUrl\timageUrl\tstyleId\n1\tDrifting Through Starlight\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/GudqteyMnyScG3FrYJuRG.mp3\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/1774579711733.png\tlofi\n3\tUnfolding Starlight Symphony\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/IBh7k2STfG9cNX7XzdflZ.mp3\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/1774579759173.png\tcinematic\n5\tAzure Horizon Shift\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/lyria/Z1v7smF9DrO0lW7BmnsG4.mp3\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663298187430/VBztMERnZXrMaUjwVoLUNH/generated/1774579805623.png\tjazz\n",
+  "stderr": "",
+  "execution_time_ms": 1543
+}
