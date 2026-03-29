@@ -108,3 +108,9 @@
 - [x] Feature: Gallery tracks — enable Download/Share Video buttons when video exists
 - [x] Bug: Generate AI Music Video is broken — fixed: removed unsupported generateAudio parameter from Veo config
 - [x] Bug: Veo API rejects personGeneration: "dont_allow" — removed unsupported parameter
+- [x] Fix: Video generation uses Gemini to analyze audio mood → generates matching Veo scene
+- [x] Fix: Video length matches audio length via Veo extension (8s initial + 7s per extension)
+- [x] Fix: Generated video contains original music via FFmpeg merge
+- [x] Fix: Rewrite video pipeline — audio→Gemini text→Veo video→extend→FFmpeg merge audio+video
+- [x] Handle length mismatch: trim if video longer, loop if video shorter
+- [x] Update frontend progress UI for multi-step video generation (2-5 min estimate)

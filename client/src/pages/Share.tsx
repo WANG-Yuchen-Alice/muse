@@ -325,7 +325,7 @@ export default function Share() {
               {videoGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating AI Video... (1-3 min)
+                  Creating Music Video... (2-5 min)
                 </>
               ) : (
                 <>

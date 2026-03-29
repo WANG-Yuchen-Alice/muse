@@ -283,79 +283,198 @@ async function generateVideoPrompt(
   }
 }
 
-async function generateAISceneVideo(
-  trackName: string,
-  styleId: string,
-  styleName: string,
-  melodyDesc?: string
-): Promise<string> {
-  // Step 1: Generate an enhanced video prompt
-  const videoPrompt = await generateVideoPrompt(styleId, styleName, trackName, melodyDesc);
-  console.log(`[Veo] Generating video for "${trackName}" (${styleName}):`, videoPrompt.slice(0, 100) + "...");
-
-  // Step 2: Call Veo 3.1 to generate the video
-  let operation = await genai.models.generateVideos({
-    model: "veo-3.1-generate-preview",
-    prompt: videoPrompt,
-    config: {
-      aspectRatio: "9:16",
-      numberOfVideos: 1,
-    },
-  });
-
-  // Step 3: Poll until done (max ~5 minutes)
-  const maxPolls = 60;
+// Helper: poll a Veo operation until done
+async function pollVeoOperation(operation: any, label: string, maxPolls = 60): Promise<any> {
   for (let i = 0; i < maxPolls; i++) {
-    if (operation.done) break;
-    console.log(`[Veo] Polling... attempt ${i + 1}/${maxPolls}`);
+    if (operation.done) return operation;
+    console.log(`[Veo] ${label} polling... attempt ${i + 1}/${maxPolls}`);
     await new Promise((r) => setTimeout(r, 5000));
     operation = await genai.operations.getVideosOperation({ operation });
   }
+  if (!operation.done) throw new Error(`Veo ${label} timed out after ${maxPolls * 5}s`);
+  if (operation.error) throw new Error(`Veo ${label} failed: ${JSON.stringify(operation.error)}`);
+  return operation;
+}
 
-  if (!operation.done) {
-    throw new Error("Veo video generation timed out after 5 minutes");
-  }
-
-  if (operation.error) {
-    throw new Error(`Veo generation failed: ${JSON.stringify(operation.error)}`);
-  }
-
+// Helper: download a Veo generated video to a local file, return the path
+async function downloadVeoVideo(operation: any): Promise<string> {
   const generatedVideos = operation.response?.generatedVideos;
   if (!generatedVideos || generatedVideos.length === 0) {
     throw new Error("Veo did not return any generated videos");
   }
-
   const video = generatedVideos[0].video;
-  if (!video) {
-    throw new Error("Veo generated video has no video data");
-  }
+  if (!video) throw new Error("Veo generated video has no video data");
 
-  // Step 4: Download the video
-  // The video may have a URI we can fetch, or videoBytes as base64
-  let videoBuffer: Buffer;
+  const localPath = path.join(tmpdir(), `muse-veo-${nanoid()}.mp4`);
+
   if (video.videoBytes) {
-    videoBuffer = Buffer.from(video.videoBytes, "base64");
+    await writeFile(localPath, Buffer.from(video.videoBytes, "base64"));
   } else if (video.uri) {
-    // Download from the URI
-    const downloadPath = path.join(tmpdir(), `muse-veo-${nanoid()}.mp4`);
-    try {
-      await genai.files.download({
-        file: generatedVideos[0].video!,
-        downloadPath,
-      });
-      videoBuffer = await readFile(downloadPath);
-    } finally {
-      await unlink(downloadPath).catch(() => {});
-    }
+    await genai.files.download({ file: video, downloadPath: localPath });
   } else {
     throw new Error("Veo video has neither videoBytes nor URI");
   }
+  return localPath;
+}
 
-  // Step 5: Upload to S3
-  const key = `videos/veo-${nanoid()}.mp4`;
-  const { url } = await storagePut(key, videoBuffer, "video/mp4");
-  console.log(`[Veo] Video uploaded: ${url}`);
-  return url;
+// Helper: get audio duration in seconds using ffprobe
+async function getAudioDuration(audioPath: string): Promise<number> {
+  const { stdout } = await execFileAsync("ffprobe", [
+    "-v", "error",
+    "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1",
+    audioPath,
+  ], { timeout: 15000 });
+  return parseFloat(stdout.trim());
+}
+
+// Helper: get video duration in seconds using ffprobe
+async function getVideoDuration(videoPath: string): Promise<number> {
+  const { stdout } = await execFileAsync("ffprobe", [
+    "-v", "error",
+    "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1",
+    videoPath,
+  ], { timeout: 15000 });
+  return parseFloat(stdout.trim());
+}
+
+async function generateAISceneVideo(
+  trackName: string,
+  styleId: string,
+  styleName: string,
+  audioUrl: string,
+  melodyDesc?: string
+): Promise<string> {
+  const id = nanoid();
+  const tempFiles: string[] = [];
+
+  try {
+    // ── Step 1: Get audio duration ──
+    const audioPath = path.join(tmpdir(), `muse-audio-${id}.tmp`);
+    tempFiles.push(audioPath);
+    const audioResp = await axios.get(audioUrl, { responseType: "arraybuffer" });
+    await writeFile(audioPath, Buffer.from(audioResp.data));
+    const audioDuration = await getAudioDuration(audioPath);
+    console.log(`[Veo] Audio duration: ${audioDuration}s`);
+
+    // ── Step 2: Generate enhanced video prompt ──
+    const videoPrompt = await generateVideoPrompt(styleId, styleName, trackName, melodyDesc);
+    console.log(`[Veo] Generating video for "${trackName}" (${styleName}):`, videoPrompt.slice(0, 100) + "...");
+
+    // ── Step 3: Generate initial 8s Veo video ──
+    let operation = await genai.models.generateVideos({
+      model: "veo-3.1-generate-preview",
+      prompt: videoPrompt,
+      config: {
+        aspectRatio: "9:16",
+        numberOfVideos: 1,
+      },
+    });
+    operation = await pollVeoOperation(operation, "initial generation");
+
+    // ── Step 4: Extend video to match audio duration ──
+    // Each extension adds ~7 seconds. Max 20 extensions (148s total).
+    const MAX_EXTENSIONS = 20;
+    let extensionCount = 0;
+    let currentVideo = operation.response?.generatedVideos?.[0]?.video;
+
+    // Check current video duration (initial is ~8s)
+    let estimatedDuration = 8;
+
+    while (estimatedDuration < audioDuration && extensionCount < MAX_EXTENSIONS) {
+      console.log(`[Veo] Extending video (${extensionCount + 1}): ~${estimatedDuration}s → need ${audioDuration}s`);
+      let extOp = await genai.models.generateVideos({
+        model: "veo-3.1-generate-preview",
+        video: currentVideo,
+        prompt: videoPrompt,
+        config: {
+          numberOfVideos: 1,
+          resolution: "720p",
+        },
+      });
+      extOp = await pollVeoOperation(extOp, `extension ${extensionCount + 1}`);
+
+      const extVideo = extOp.response?.generatedVideos?.[0]?.video;
+      if (!extVideo) {
+        console.warn(`[Veo] Extension ${extensionCount + 1} returned no video, stopping extensions`);
+        break;
+      }
+      currentVideo = extVideo;
+      estimatedDuration += 7; // Each extension adds ~7s
+      extensionCount++;
+    }
+
+    console.log(`[Veo] Final video: ~${estimatedDuration}s after ${extensionCount} extensions`);
+
+    // ── Step 5: Download the final extended video ──
+    // Build a fake operation-like object for downloadVeoVideo
+    const finalOp = {
+      response: {
+        generatedVideos: [{ video: currentVideo }],
+      },
+    };
+    const videoPath = await downloadVeoVideo(finalOp);
+    tempFiles.push(videoPath);
+
+    // ── Step 6: Get actual video duration ──
+    const actualVideoDuration = await getVideoDuration(videoPath);
+    console.log(`[Veo] Actual video duration: ${actualVideoDuration}s, audio: ${audioDuration}s`);
+
+    // ── Step 7: FFmpeg merge — combine video + audio into final MP4 ──
+    const outputPath = path.join(tmpdir(), `muse-final-${id}.mp4`);
+    tempFiles.push(outputPath);
+
+    if (actualVideoDuration >= audioDuration) {
+      // Video is longer or equal — trim video to audio length, replace audio
+      await execFileAsync("ffmpeg", [
+        "-y",
+        "-i", videoPath,
+        "-i", audioPath,
+        "-t", String(audioDuration),
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "libx264", "-preset", "fast",
+        "-c:a", "aac", "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-shortest",
+        outputPath,
+      ], { timeout: 120000 });
+    } else {
+      // Video is shorter — loop video to match audio length, then add audio
+      // Use FFmpeg stream_loop or concat filter to loop
+      const loopCount = Math.ceil(audioDuration / actualVideoDuration);
+      await execFileAsync("ffmpeg", [
+        "-y",
+        "-stream_loop", String(loopCount - 1),
+        "-i", videoPath,
+        "-i", audioPath,
+        "-t", String(audioDuration),
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "libx264", "-preset", "fast",
+        "-c:a", "aac", "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-shortest",
+        outputPath,
+      ], { timeout: 120000 });
+    }
+
+    // ── Step 8: Upload final MP4 to S3 ──
+    const finalBuffer = await readFile(outputPath);
+    const key = `videos/music-video-${id}.mp4`;
+    const { url } = await storagePut(key, finalBuffer, "video/mp4");
+    console.log(`[Veo] Final music video uploaded: ${url} (${(finalBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
+    return url;
+
+  } finally {
+    // Clean up all temp files
+    for (const f of tempFiles) {
+      await unlink(f).catch(() => {});
+    }
+  }
 }
 
 async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<Buffer> {
@@ -850,11 +969,12 @@ Rules:
         const trackName = input.trackName || "Untitled";
         const styleName = style?.name || input.styleId;
 
-        // Generate AI scene video with Veo
+        // Generate AI scene video with Veo + merge with audio
         const videoUrl = await generateAISceneVideo(
           trackName,
           input.styleId,
           styleName,
+          input.audioUrl,
           input.melodyDescription,
         );
 

@@ -674,7 +674,7 @@ export default function Results() {
                 {videoGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating AI Scene... (1-3 min)
+                    Creating Music Video... (2-5 min)
                   </>
                 ) : (
                   <>
@@ -685,7 +685,7 @@ export default function Results() {
               </Button>
 
               <p className="text-[10px] text-muted-foreground text-center">
-                AI-generated cinematic scene video powered by Veo
+                AI generates a cinematic scene video matching your music's mood, then merges it with your audio track
               </p>
             </div>
           )}
