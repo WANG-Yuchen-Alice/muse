@@ -1,7 +1,7 @@
 # Muse — Product Requirements Document
 
-**Version:** 1.0  
-**Date:** March 28, 2026  
+**Version:** 2.0  
+**Date:** March 30, 2026  
 **Authors:** Muse Team  
 **Hackathon:** APAC AI New Bets Hackathon
 
@@ -9,9 +9,11 @@
 
 ## Executive Summary
 
-Muse is an AI-powered music creation platform that transforms anyone into a music producer. Users simply hum a melody or play a few notes on a virtual piano, and Muse's AI engine generates polished, multi-style music tracks complete with AI-generated scene videos optimized for social sharing on Instagram Reels, TikTok, and Meta platforms. Muse democratizes music creation by eliminating the need for musical training, expensive software, or production expertise, making the creative process as intuitive as humming a tune.
+Muse is an AI-powered music creation platform that transforms anyone into a music producer. Users simply hum a melody or play a few notes on a virtual piano, and Muse's AI engine generates polished, multi-style music tracks complete with AI-generated cinematic scene videos optimized for social sharing on Instagram Reels, TikTok, and other short-form video platforms. Muse democratizes music creation by eliminating the need for musical training, expensive software, or production expertise, making the creative process as intuitive as humming a tune.
 
-The platform leverages Google's Lyria 3 and Meta's MusicGen for dual-engine music generation, Google's Veo for AI scene video creation, and deep integration with the Meta ecosystem for frictionless social distribution. Muse targets the intersection of three explosive growth markets: AI music generation ($569M in 2024, projected to reach $2.8B by 2030 [1]), short-form video content creation (2B+ daily Reels plays on Instagram [2]), and the creator economy ($250B+ globally [3]).
+The platform leverages Google's Lyria 3 for creative reimagination, Meta's MusicGen for faithful melody reproduction, MiniMax's Hailuo 2.3 for AI scene video generation, and Spotify's Basic Pitch for intelligent hum-to-notes conversion. Muse targets the intersection of three explosive growth markets: AI music generation ($569M in 2024, projected to reach $2.8B by 2030 [1]), short-form video content creation (2B+ daily Reels plays on Instagram [2]), and the creator economy ($250B+ globally [3]).
+
+**Tagline:** *Turn your hum into music. Go viral.*
 
 ---
 
@@ -59,7 +61,7 @@ Muse's SAM focuses on non-professional music creators who actively use social me
 
 In the first 18 months post-launch, Muse targets:
 
-- **Year 1 target users**: 500K registered users (organic + Meta ecosystem distribution)
+- **Year 1 target users**: 500K registered users (organic + social platform distribution)
 - **Conversion to paid**: 5% = 25K paying subscribers
 - **Average revenue per user (ARPU)**: $8/month
 - **Year 1 SOM**: ~$2.4M ARR
@@ -67,9 +69,7 @@ In the first 18 months post-launch, Muse targets:
 
 ### 2.4 Market Timing
 
-Several converging trends make this the optimal moment for Muse:
-
-The release of Google's Lyria 3 Clip and Veo 3.1 in 2025-2026 has made high-fidelity music and video generation accessible via API for the first time. Meta's aggressive push into AI-powered content creation tools (Vibes for Instagram, AI audio reuse features) signals a platform-level commitment to AI-generated content. The short-form video market continues to grow at 28% CAGR, with Instagram Reels alone seeing 2B+ daily plays. Meanwhile, Suno's rapid growth to $200M ARR validates massive consumer demand for AI music creation.
+Several converging trends make this the optimal moment for Muse. The release of Google's Lyria 3 Clip in 2025-2026 has made high-fidelity music generation accessible via API for the first time. MiniMax's Hailuo 2.3 delivers reliable, high-quality video generation at scale. The short-form video market continues to grow at 28% CAGR, with Instagram Reels alone seeing 2B+ daily plays. Meanwhile, Suno's rapid growth to $200M ARR validates massive consumer demand for AI music creation.
 
 ---
 
@@ -81,11 +81,11 @@ Muse's moonshot is to become the **universal music creation layer** — a platfo
 
 Today, Muse starts with hum-to-music. But the underlying architecture is designed for a much larger vision:
 
-**Phase 1 (Current — Hackathon MVP):** Hum or play a melody → AI generates multi-style tracks → AI creates scene videos → One-tap share to social platforms.
+**Phase 1 (Current — Hackathon MVP):** Hum or play a melody → AI generates multi-style tracks → AI creates cinematic scene videos → One-tap share to social platforms.
 
-**Phase 2 (6 months):** Real-time collaborative music creation. Multiple users hum different parts simultaneously, and AI weaves them into a cohesive composition. Integration with Meta's Horizon Worlds for immersive music creation in VR/MR.
+**Phase 2 (6 months):** Real-time collaborative music creation. Multiple users hum different parts simultaneously, and AI weaves them into a cohesive composition. Integration with immersive platforms for spatial music creation.
 
-**Phase 3 (12 months):** Ambient music generation. Muse on Meta Ray-Ban glasses listens to your environment (a rainstorm, a bustling cafe, a quiet forest) and generates a personalized soundtrack that evolves with your surroundings in real-time using Lyria RealTime.
+**Phase 3 (12 months):** Ambient music generation. Muse on smart glasses or wearables listens to your environment (a rainstorm, a bustling cafe, a quiet forest) and generates a personalized soundtrack that evolves with your surroundings in real-time.
 
 **Phase 4 (24 months):** The Music Social Network. A TikTok-like feed where every piece of content is AI-generated music + video, created by everyday people. Users remix each other's melodies, collaborate across continents, and build musical conversations. The platform becomes a new form of social expression where music replaces text as the primary communication medium.
 
@@ -95,39 +95,29 @@ Music is the most universal human language. Every culture, every civilization, e
 
 ---
 
-## 4. Meta Ecosystem Compatibility
+## 4. Social Platform Compatibility
 
-### 4.1 Integration Architecture
+### 4.1 Platform Integration Architecture
 
-Muse is designed as a **Meta-native creation tool**, deeply integrated across Meta's family of apps and devices:
+Muse is designed as a **social-native creation tool**, optimized for distribution across major social and messaging platforms:
 
-| Meta Platform | Integration Point | User Value |
+| Platform | Integration Point | User Value |
 |---|---|---|
 | **Instagram Reels** | One-tap export of 9:16 AI music videos | Instant social sharing with optimized format |
-| **Facebook Stories** | Cross-post music videos | Extended reach across Meta platforms |
+| **TikTok** | 9:16 portrait video with music | Native format for viral distribution |
+| **YouTube Shorts** | Cross-post music videos | Extended reach on Google's platform |
 | **WhatsApp** | Share creation links + audio previews | Viral distribution through messaging |
-| **Meta Ray-Ban Glasses** | Hum-to-music via built-in mic | Hands-free music creation on the go |
-| **Meta Quest (VR/MR)** | Immersive music studio in Horizon Worlds | Spatial audio creation and collaboration |
 | **Threads** | Share music creation stories | Community building around music creation |
-| **Meta AI** | Audio reuse and remix capabilities | AI-powered music remixing ecosystem |
+| **Smart Glasses** | Hum-to-music via built-in mic | Hands-free music creation on the go |
+| **VR/MR Headsets** | Immersive music studio | Spatial audio creation and collaboration |
 
 ### 4.2 Instagram Reels Deep Integration
 
-Instagram Reels is the primary distribution channel for Muse-generated content. The integration is designed to maximize both creator satisfaction and platform engagement:
+Instagram Reels is the primary distribution channel for Muse-generated content. Muse generates videos in the exact 9:16 portrait format at 1080x1920 resolution that Instagram Reels requires. Each video includes AI-generated cinematic scene visuals that match the music's mood and style (e.g., neon cityscapes for electronic music, serene landscapes for lo-fi). Users can share directly from Muse to Instagram with pre-filled captions and relevant hashtags.
 
-Muse generates videos in the exact 9:16 portrait format at 1080x1920 resolution that Instagram Reels requires. Each video includes AI-generated scene visuals that match the music's mood and style (e.g., neon cityscapes for electronic music, serene landscapes for lo-fi). The video includes the track title and creator attribution as text overlays, optimized for the Reels viewing experience. Users can share directly from Muse to Instagram with pre-filled captions and relevant hashtags.
+### 4.3 Audio Reuse and Remix Cycle
 
-### 4.3 Meta AI Audio Reuse
-
-Instagram recently introduced a feature allowing creators to enable audio reuse via Meta AI [8]. Muse-generated tracks can opt into this system, enabling a viral remix cycle: Creator A hums a melody → Muse generates a track → Creator B discovers the track on Reels → Creator B remixes it with their own hum → A new track is born. This creates a **flywheel effect** where each creation spawns new creations, driving both platform engagement and Muse adoption.
-
-### 4.4 Meta Ray-Ban Glasses
-
-Meta's Ray-Ban smart glasses include an open-ear speaker system, built-in microphone, and Meta AI voice assistant [9]. Muse can integrate as a voice-activated experience: "Hey Meta, open Muse" → hum a melody → receive a notification when the track is ready → listen through the glasses' speakers. This represents the most natural music creation experience possible — literally humming while walking down the street.
-
-### 4.5 Meta Horizon Worlds (VR/MR)
-
-For the Phase 2 moonshot, Muse envisions a spatial music creation experience in Meta's VR/MR environment. Users enter a virtual music studio where they can physically "sculpt" sound — reaching out to grab and stretch melodies, arranging instruments in 3D space, and collaborating with other users in real-time. Meta's Horizon Studio generative AI tools [10] provide the foundation for building these immersive experiences.
+Instagram's audio reuse feature enables a viral remix cycle: Creator A hums a melody → Muse generates a track → Creator B discovers the track on Reels → Creator B remixes it with their own hum → A new track is born. This creates a **flywheel effect** where each creation spawns new creations, driving both platform engagement and Muse adoption.
 
 ---
 
@@ -139,15 +129,29 @@ For the Phase 2 moonshot, Muse envisions a spatial music creation experience in 
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   INPUT      │     │  GENERATION  │     │   VIDEO      │     │   SHARE      │
 │              │     │              │     │              │     │              │
-│ Hum melody   │────▶│ Lyria 3      │────▶│ Veo 3.1      │────▶│ Instagram    │
+│ Hum melody   │────▶│ Lyria 3      │────▶│ Hailuo 2.3   │────▶│ Instagram    │
 │ Play piano   │     │ (Reimagined) │     │ Scene video  │     │ TikTok       │
 │ Choose style │     │              │     │ 9:16 format  │     │ WhatsApp     │
-│ Add lyrics   │     │ MusicGen     │     │ Style-matched│     │ Community    │
-│ (optional)   │     │ (Faithful)   │     │ visuals      │     │              │
+│ (1-3 styles) │     │ MusicGen     │     │ Style-matched│     │ Community    │
+│              │     │ (Faithful)   │     │ visuals      │     │              │
 └─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-### 5.2 Dual-Engine Music Generation
+### 5.2 Hum-to-Notes Pipeline
+
+Muse's hum detection pipeline converts raw vocal input into structured musical notes through a multi-stage process:
+
+1. **Audio Capture**: Browser-based recording via Web Audio API with real-time pitch visualization. Maximum 10 seconds of recording with live note detection feedback.
+
+2. **Pitch Detection**: Spotify's Basic Pitch ML model analyzes the audio to extract note onsets, pitches, and durations. The model runs server-side for accuracy.
+
+3. **Melody Extraction**: A smart sampling algorithm filters the raw Basic Pitch output — downsampling to the strongest note per time window, filtering out semitones (sharps/flats) to keep only natural notes (C, D, E, F, G, A, B), and removing harmonic artifacts.
+
+4. **Piano Key Verification**: The extracted notes are displayed on an interactive 2-octave piano keyboard (C4-B5). Users can hear each note played back, add or remove notes, and confirm the melody before generation.
+
+5. **Melody Description**: Confirmed notes are converted into a structured text description (e.g., "ascending melody: C4 → E4 → G4 → C5, tempo moderate") that feeds into both music generation engines.
+
+### 5.3 Dual-Engine Music Generation
 
 Muse employs two complementary AI models to give users creative choice:
 
@@ -157,9 +161,9 @@ Muse employs two complementary AI models to give users creative choice:
 
 Each generation session produces tracks in the user's selected styles (up to 3 from 10 available genres), with both Reimagined and Faithful variants per style, giving users up to 6 unique tracks from a single hum.
 
-### 5.3 Style System
+### 5.4 Style System
 
-Muse offers 10 curated music styles, each with carefully crafted AI prompts:
+Muse offers 10 curated music styles, each with a distinct visual identity:
 
 | Style | Description | Visual Theme |
 |---|---|---|
@@ -174,20 +178,25 @@ Muse offers 10 curated music styles, each with carefully crafted AI prompts:
 | Classical | Elegant orchestral arrangements | Grand halls, nature's beauty |
 | EDM | High-energy drops and builds | Festival lights, crowd energy |
 
-### 5.4 AI Scene Video Generation
+### 5.5 AI Scene Video Generation
 
-Using Google's Veo 3.1 API, Muse generates 8-second scene videos that visually match the music's mood and style. The video generation pipeline works as follows:
+Using MiniMax's Hailuo 2.3 model via Replicate, Muse generates cinematic scene videos that visually match the music's mood and style. The video generation pipeline uses a **background job + polling** architecture for reliability:
 
-1. The user's selected style determines the base visual prompt (e.g., "neon-lit Tokyo street at night, rain reflections on pavement" for Electronic)
-2. The AI-generated cover art for the track serves as a reference image for visual consistency
-3. Veo generates a 9:16 portrait video at 1080x1920 resolution
-4. The generated music audio replaces Veo's native audio track
-5. Text overlays (track title, creator name) are composited onto the final video
-6. The result is a platform-ready video optimized for Instagram Reels and TikTok
+1. **Job Initiation**: The client sends a `generateVideo` mutation that immediately returns a `jobId`. The actual generation runs as a background process on the server.
 
-### 5.5 Session Naming
+2. **Scene Prompt Generation**: An LLM analyzes the track's style, mood, and cover art to craft a detailed cinematic scene description (e.g., "A close-up on a rain-streaked window pane, blurred city lights shimmering beyond, warm amber tones").
 
-Each creation session receives an AI-generated poetic name (e.g., "Midnight Reverie," "Sunlit Drift," "Velvet Thunder") using LLM-based naming that considers the selected styles and musical context. This transforms a technical session ID into a memorable creative identity.
+3. **Video Segment Generation**: Hailuo 2.3 generates a single 10-second video segment at 768p resolution, using the AI-generated cover art as the first-frame reference for visual consistency.
+
+4. **Loop and Merge**: FFmpeg loops the video segment to match the audio duration (typically 20-30 seconds) and merges the generated music as the audio track. Output is 9:16 portrait format optimized for social platforms.
+
+5. **Progress Polling**: The frontend polls `videoJobStatus` every 3 seconds, receiving real-time progress updates (step name + percentage) from the server. Total generation time is approximately 2 minutes.
+
+6. **Fallback**: If FFmpeg is unavailable in the deployment environment, the system falls back to uploading the raw video segment directly, ensuring generation always completes.
+
+### 5.6 Session Naming
+
+Each creation session receives an AI-generated poetic name (e.g., "Midnight Reverie," "Sunlit Drift," "Velvet Thunder") using LLM-based naming that considers the selected styles and musical context. Individual tracks also receive creative names (e.g., "Last Train Home," "The Night Walk") rather than generic labels.
 
 ---
 
@@ -203,9 +212,11 @@ Each creation session receives an AI-generated poetic name (e.g., "Midnight Reve
 | Auth | Manus OAuth | Seamless authentication integration |
 | Music AI (1) | Google Lyria 3 Clip API | State-of-the-art music generation with lyrics |
 | Music AI (2) | Meta MusicGen via Replicate | Faithful melody reproduction |
-| Video AI | Google Veo 3.1 API | High-fidelity scene video generation |
+| Video AI | MiniMax Hailuo 2.3 via Replicate | Reliable cinematic scene video generation |
 | Image AI | Built-in Image Generation | Style-specific cover art |
-| LLM | Built-in LLM (Gemini) | Track naming, session naming, prompt crafting |
+| Pitch Detection | Spotify Basic Pitch | ML-based hum-to-notes conversion |
+| LLM | Built-in LLM (Gemini) | Track naming, session naming, scene prompts |
+| Media Processing | FFmpeg (@ffmpeg-installer) | Audio conversion, video looping, audio-video merge |
 | Storage | S3-compatible object storage | Audio, video, and image asset storage |
 | Hosting | Manus Platform | Managed deployment with custom domains |
 
@@ -222,14 +233,17 @@ Client (React)
     │               ├── Replicate API (MusicGen)
     │               │     └── Faithful melody reproduction
     │               │
-    │               ├── Veo 3.1 API (Google AI)
-    │               │     └── Scene video generation
+    │               ├── Replicate API (Hailuo 2.3)
+    │               │     └── Cinematic scene video generation
     │               │
     │               ├── Image Generation API
     │               │     └── Style-specific cover art
     │               │
     │               ├── LLM API (Gemini)
-    │               │     └── Track/session naming
+    │               │     └── Track/session naming, scene prompts
+    │               │
+    │               ├── FFmpeg (bundled binary)
+    │               │     └── Audio conversion, video loop + merge
     │               │
     │               └── S3 Storage
     │                     └── Audio, video, image assets
@@ -238,9 +252,31 @@ Client (React)
           └── Real-time pitch detection + spectrum visualization
 ```
 
-### 6.3 Performance Considerations
+### 6.3 Background Job Architecture
 
-Music generation latency is the primary UX challenge. Lyria 3 typically responds in 30-70 seconds, while MusicGen takes 20-40 seconds. Muse addresses this through several strategies: parallel generation of all tracks simultaneously (rather than sequential), progressive UI reveal (showing cover art and track names while audio generates), entertaining loading animations with rotating music fun facts, and server-side auto-retry with exponential backoff for transient API failures. When Lyria 3 fails after multiple retries, Muse displays a humorous "compliment card" instead of a cold error message, maintaining the playful user experience.
+Video generation uses an in-memory job store with polling-based progress tracking:
+
+```
+Client                          Server
+  │                               │
+  ├── generateVideo ─────────────▶│ Creates job, returns jobId
+  │                               │ Starts background generation
+  │                               │
+  ├── videoJobStatus (poll) ─────▶│ Returns { status, step, progress }
+  │   (every 3 seconds)           │
+  ├── videoJobStatus (poll) ─────▶│ "Generating scene prompt..." (10%)
+  ├── videoJobStatus (poll) ─────▶│ "Generating video clip..." (30%)
+  ├── videoJobStatus (poll) ─────▶│ "Merging video + audio..." (80%)
+  ├── videoJobStatus (poll) ─────▶│ "complete" + videoUrl (100%)
+  │                               │
+  └── Display video player        │
+```
+
+### 6.4 Performance Considerations
+
+Music generation latency is the primary UX challenge. Lyria 3 typically responds in 30-70 seconds, while MusicGen takes 20-40 seconds. Muse addresses this through several strategies: parallel generation of all tracks simultaneously (rather than sequential), progressive UI reveal (showing cover art and track names while audio generates), entertaining loading animations with rotating music fun facts (200 curated facts), and server-side auto-retry with exponential backoff for transient API failures. When Lyria 3 fails after multiple retries, Muse displays a humorous "compliment card" instead of a cold error message, maintaining the playful user experience.
+
+Video generation takes approximately 2 minutes (down from 8 minutes after optimization from 4 segments to 1 looped segment). The background job + polling architecture ensures the HTTP connection never times out, and real-time progress updates keep users informed throughout the process.
 
 ---
 
@@ -252,9 +288,9 @@ Music generation latency is the primary UX challenge. Lyria 3 typically responds
 |---|---|---|---|---|
 | **Input Method** | Hum / Play melody | Text prompt | Text prompt | Text prompt / MIDI |
 | **Melody Preservation** | Yes (dual engine) | No | No | Partial |
-| **Video Generation** | AI scene video (Veo) | No | No | No |
+| **Video Generation** | AI scene video (Hailuo) | No | No | No |
 | **Social Sharing** | One-tap to Reels/TikTok | Manual export | Manual export | Manual export |
-| **Meta Integration** | Deep (Reels, Glasses, Quest) | None | None | None |
+| **Hum Detection** | ML-based (Basic Pitch) | No | No | No |
 | **Lyrics Support** | Yes (Lyria 3) | Yes | Yes | No |
 | **Style Selection** | 10 curated styles | Free-form | Free-form | Genre-based |
 | **Pricing** | Freemium | $10/mo | $10/mo | $15/mo |
@@ -264,13 +300,13 @@ Music generation latency is the primary UX challenge. Lyria 3 typically responds
 
 Muse's defensible advantages are:
 
-**Input modality**: Hum-first input is fundamentally more natural than text prompts. Users do not need to know music terminology — they just sing what they feel. This dramatically lowers the barrier to entry and expands the addressable user base beyond music enthusiasts to the general population.
+**Input modality**: Hum-first input is fundamentally more natural than text prompts. Users do not need to know music terminology — they just sing what they feel. The ML-based pitch detection (Spotify Basic Pitch) with interactive piano verification ensures high accuracy while keeping the experience intuitive. This dramatically lowers the barrier to entry and expands the addressable user base beyond music enthusiasts to the general population.
 
 **End-to-end pipeline**: Muse is the only platform that takes users from melody input to shareable social video in a single flow. Competitors stop at audio generation, leaving users to figure out video creation and distribution on their own.
 
-**Meta ecosystem integration**: Deep integration with Instagram Reels, WhatsApp, Meta Glasses, and Meta Quest creates distribution advantages that pure-play music tools cannot replicate. Every Muse creation shared on Instagram becomes organic marketing for the platform.
+**Dual-engine approach**: By offering both "Reimagined" (Lyria 3) and "Faithful" (MusicGen) variants, Muse gives users creative choice that single-model competitors cannot match. Users can hear their melody interpreted creatively or preserved faithfully, across multiple genres.
 
-**Dual-engine approach**: By offering both "Reimagined" (Lyria 3) and "Faithful" (MusicGen) variants, Muse gives users creative choice that single-model competitors cannot match.
+**Social-native output**: Every generated video is in 9:16 portrait format with cinematic AI visuals, ready for immediate sharing. The share page works without authentication, enabling viral distribution through link sharing.
 
 ---
 
@@ -290,22 +326,22 @@ Muse's defensible advantages are:
 
 - **Platform fees**: Revenue share on premium style packs created by professional producers
 - **Enterprise API**: B2B licensing for content platforms, gaming companies, and advertising agencies
-- **Meta partnership**: Potential revenue share on Reels engagement driven by Muse-generated content
+- **Social platform partnerships**: Potential revenue share on engagement driven by Muse-generated content
 
 ### 8.2 Unit Economics
 
 | Metric | Value | Notes |
 |---|---|---|
 | Music generation cost | ~$0.02-0.05/track | Lyria 3 API + MusicGen API |
-| Video generation cost | ~$2.80/video | Veo 3.1 at $0.35/sec × 8 sec |
+| Video generation cost | ~$0.10/video | Hailuo 2.3 via Replicate (1 segment) |
 | Image generation cost | ~$0.01/image | Built-in image generation |
-| Total cost per session | ~$3.50-4.00 | 6 tracks + 1 video + images |
+| Total cost per session | ~$0.30-0.50 | 6 tracks + 1 video + images |
 | Target ARPU | $8/month | Creator tier |
 | Estimated sessions/user/month | 8-12 | Based on Suno usage patterns |
-| Cost per user/month | ~$35-48 | At current API pricing |
-| Break-even requires | Scale pricing + selective video gen | Video only on user request |
+| Cost per user/month | ~$3-6 | At current API pricing |
+| **Gross margin** | **~60-75%** | Healthy unit economics at scale |
 
-The unit economics improve significantly with scale through negotiated API pricing, caching of popular style templates, and selective video generation (only when users explicitly request it rather than auto-generating for every track).
+The migration from Veo ($2.80/video) to Hailuo 2.3 (~$0.10/video) dramatically improved unit economics, reducing per-session costs by over 85%. The single-segment loop optimization further reduced video generation costs while maintaining visual quality.
 
 ---
 
@@ -319,16 +355,18 @@ The unit economics improve significantly with scale through negotiated API prici
 Acceptance Criteria:
 - Recording starts within 1 second of tapping the microphone button
 - Recording can be stopped at any time (no minimum duration requirement)
-- Pitch detection extracts melody from hum within 2 seconds
+- ML-based pitch detection extracts melody from hum within 5 seconds
+- Interactive piano keyboard shows detected notes for verification
 - At least 2 music tracks are generated within 90 seconds
-- Each track is playable directly in the browser with spectrum visualization
+- Each track is playable directly in the browser with AI-generated cover art
 
 **US-2: Social Content Creator**
 > As an Instagram content creator, I want to generate a music video from my melody that I can share directly to Reels, so that I can create unique audio content for my followers.
 
 Acceptance Criteria:
-- Video is generated in 9:16 portrait format at 1080x1920 resolution
-- Video includes AI-generated scene visuals matching the music style
+- Video is generated in 9:16 portrait format at 768p+ resolution
+- Video includes AI-generated cinematic scene visuals matching the music style
+- Video generation completes within 2 minutes with real-time progress updates
 - Share button copies link or triggers native share dialog
 - Video is playable on the share page without authentication
 
@@ -337,18 +375,19 @@ Acceptance Criteria:
 
 Acceptance Criteria:
 - User can select 1-3 styles from 10 available genres
-- Default selection is Lo-fi and Electronic
+- Default selection is Lo-fi
 - Each selected style generates both Reimagined and Faithful variants
-- Style-specific cover art is generated for each track
+- Style-specific AI cover art is generated for each track
 
 **US-4: Community Member**
 > As a Muse user, I want to browse and listen to other people's creations, so that I can discover new music and get inspired.
 
 Acceptance Criteria:
-- Community page shows all public creations with video thumbnails
+- Community gallery shows all public creations with cover art thumbnails
 - Tracks with videos display a "VIDEO" badge
 - Clicking a creation opens the share page with full playback
 - Filter by style is available
+- MP3 download and video share are available from the gallery
 
 ---
 
@@ -377,12 +416,13 @@ Acceptance Criteria:
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| API cost exceeds revenue | High | High | Selective video gen, caching, negotiated pricing |
-| Lyria 3 / Veo API instability | Medium | High | Auto-retry with backoff, graceful degradation, dual-engine fallback |
+| API cost exceeds revenue | Low | Medium | Hailuo migration reduced video cost 96%; healthy unit economics |
+| Music API instability | Medium | High | Auto-retry with backoff, graceful degradation, dual-engine fallback |
 | Copyright concerns with AI music | Medium | High | Clear AI-generated labeling, no training on copyrighted melodies |
 | Low user retention after novelty | Medium | Medium | Community features, remix capabilities, progressive skill building |
-| Meta platform policy changes | Low | High | Multi-platform support (TikTok, YouTube Shorts), standalone value |
-| Competitor replication | Medium | Medium | Speed of execution, Meta integration moat, community network effects |
+| Platform policy changes | Low | High | Multi-platform support (TikTok, YouTube Shorts, Instagram), standalone value |
+| Competitor replication | Medium | Medium | Speed of execution, hum-first moat, community network effects |
+| FFmpeg deployment issues | Low | Medium | Fallback to raw video upload, bundled binary via @ffmpeg-installer |
 
 ---
 
@@ -390,11 +430,38 @@ Acceptance Criteria:
 
 | Quarter | Milestone | Key Features |
 |---|---|---|
-| **Q2 2026** | Hackathon MVP | Hum/play input, dual-engine generation, 10 styles, AI video, social share |
-| **Q3 2026** | Public Beta | Lyrics input, user profiles, remix capability, Instagram Reels deep link |
-| **Q4 2026** | Growth Phase | Meta Glasses integration, collaborative creation, premium styles marketplace |
+| **Q2 2026** | Hackathon MVP | Hum/play input, dual-engine generation, 10 styles, AI video, social share, community gallery |
+| **Q3 2026** | Public Beta | Lyrics input, user profiles, remix capability, Instagram Reels deep link, video crossfade |
+| **Q4 2026** | Growth Phase | Smart glasses integration, collaborative creation, premium styles marketplace |
 | **Q1 2027** | Platform | API for developers, enterprise tier, VR music studio prototype |
 | **Q2 2027** | Scale | Music social feed, algorithmic discovery, creator monetization |
+
+---
+
+## 13. Current Implementation Status
+
+As of March 30, 2026, the following features are fully implemented and deployed:
+
+| Feature | Status | Notes |
+|---|---|---|
+| Hum recording with pitch detection | Shipped | 10s max, real-time note visualization |
+| Basic Pitch ML hum-to-notes | Shipped | Spotify's model, smart melody extraction |
+| Interactive piano verification | Shipped | 2-octave keyboard (C4-B5), playback |
+| Lyria 3 Clip generation | Shipped | 30s tracks with auto-retry |
+| MusicGen generation | Shipped | 30s instrumental tracks via Replicate |
+| 10 music styles | Shipped | Lo-fi through EDM |
+| AI cover art generation | Shipped | Style-specific, per-track |
+| AI track naming | Shipped | LLM-generated creative names |
+| AI session naming | Shipped | Poetic session identifiers |
+| Hailuo 2.3 video generation | Shipped | 1 segment looped, ~2 min generation |
+| Background job + polling | Shipped | Real-time progress, no HTTP timeout |
+| FFmpeg audio-video merge | Shipped | With fallback for deployment |
+| Community gallery | Shipped | Style filters, session/track views |
+| Share page | Shipped | Public, no-auth video playback |
+| MP3 download | Shipped | Server-side format conversion |
+| MP4 video download | Shipped | Fetch-then-blob for cross-origin |
+| Landing page | Shipped | "Turn your hum into music. Go viral." |
+| 200 music fun facts | Shipped | Rotating loading messages |
 
 ---
 
@@ -413,9 +480,3 @@ Acceptance Criteria:
 [6] DataReportal. "Digital 2025: Global Overview Report." 2025. https://datareportal.com
 
 [7] Influencer Marketing Hub. "Creator Economy Statistics." 2025. https://influencermarketinghub.com
-
-[8] Threads/@jonahmanzano. "Instagram now lets you enable audio reuse via Meta AI." February 2026. https://www.threads.com/@jonahmanzano/post/DUnQE5QCbw0
-
-[9] Meta. "AI glasses with music: Immersive open-air audio experience." 2025. https://www.meta.com/ai-glasses/music-and-audio/
-
-[10] Meta. "Meta Connect 2025: How AI Is Supercharging the Metaverse." September 2025. https://www.meta.com/blog/connect-2025-day-2-keynote-recap-vr-development-use-cases-wearable-device-access-toolkit/
