@@ -513,28 +513,29 @@ async function generateAISceneVideoWithProgress(
     console.log(`[Hailuo] Audio duration: ${audioDuration}s`);
 
     // ── Step 2: Plan segments ──
+    // Generate just 1 segment and loop it to match audio length.
+    // This cuts generation time from ~8min (4 segments) to ~2min (1 segment).
     const SEGMENT_DURATION = 10;
-    const segmentCount = Math.max(1, Math.ceil(audioDuration / SEGMENT_DURATION));
-    console.log(`[Hailuo] Plan: ${segmentCount} segment(s) of ${SEGMENT_DURATION}s each for ${audioDuration}s audio`);
+    const segmentCount = 1;
+    console.log(`[Hailuo] Plan: 1 segment of ${SEGMENT_DURATION}s, will loop to fill ${audioDuration}s audio`);
     report({ segmentsTotal: segmentCount, progress: 8 });
 
-    // ── Step 3: Generate scene prompts ──
-    report({ status: "prompting", step: "Writing scene descriptions...", progress: 10 });
-    const prompts = await generateVideoPrompts(styleId, styleName, trackName, segmentCount, melodyDesc);
-    console.log(`[Hailuo] Generated ${prompts.length} prompts for "${trackName}" (${styleName})`);
+    // ── Step 3: Generate scene prompt (just 1) ──
+    report({ status: "prompting", step: "Writing scene description...", progress: 10 });
+    const prompts = await generateVideoPrompts(styleId, styleName, trackName, 1, melodyDesc);
+    console.log(`[Hailuo] Generated prompt for "${trackName}" (${styleName})`);
     report({ progress: 15 });
 
     // ── Step 4: Generate video clips with Hailuo 2.3 ──
-    report({ status: "generating", step: `Generating video clip 1/${segmentCount}...`, progress: 15 });
+    report({ status: "generating", step: "Generating video clip...", progress: 15 });
     const segmentUrls: string[] = [];
     for (let i = 0; i < segmentCount; i++) {
       const prompt = prompts[i] || prompts[0];
-      console.log(`[Hailuo] Generating segment ${i + 1}/${segmentCount} (${SEGMENT_DURATION}s): ${prompt.slice(0, 80)}...`);
+      console.log(`[Hailuo] Generating segment (${SEGMENT_DURATION}s): ${prompt.slice(0, 80)}...`);
       report({
-        step: `Generating video clip ${i + 1}/${segmentCount}...`,
+        step: "Generating video clip...",
         segmentsDone: i,
-        // Progress: 15% to 80% spread across segments
-        progress: 15 + Math.round((i / segmentCount) * 65),
+        progress: 15,
       });
 
       try {

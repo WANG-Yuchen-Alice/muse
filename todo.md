@@ -150,3 +150,4 @@
 - [x] Convert video generation to background job + polling pattern (prevents HTTP timeout)
 - [x] Add server-driven progress reporting (real-time step + percentage from server)
 - [x] Add vitest tests for generateVideo and videoJobStatus endpoints (29 tests pass)
+- [x] Optimize: Generate 1 Hailuo segment and loop to match audio length (reduce ~8min to ~2min)
