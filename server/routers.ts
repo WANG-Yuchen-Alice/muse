@@ -603,76 +603,102 @@ async function generateAISceneVideoWithProgress(
     tempFiles.push(outputPath);
     const ffmpegTimeout = 300000;
 
-    if (segmentPaths.length === 1) {
-      const segDuration = await getVideoDuration(segmentPaths[0]);
-      const loopCount = Math.ceil(audioDuration / segDuration);
-      console.log(`[Hailuo] Single segment (${segDuration.toFixed(1)}s), looping ${loopCount}x for ${audioDuration.toFixed(1)}s audio`);
-
-      await execFileAsync(FFMPEG, [
-        "-y",
-        "-stream_loop", String(loopCount - 1),
-        "-i", segmentPaths[0],
-        "-i", audioPath,
-        "-t", String(audioDuration),
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        "-shortest",
-        outputPath,
-      ], { timeout: ffmpegTimeout });
-    } else {
-      const concatListPath = path.join(tmpdir(), `muse-concat-${id}.txt`);
-      tempFiles.push(concatListPath);
-
-      let totalSegDuration = 0;
-      for (const sp of segmentPaths) {
-        totalSegDuration += await getVideoDuration(sp);
-      }
-
-      const concatLines: string[] = [];
-      for (const sp of segmentPaths) {
-        concatLines.push(`file '${sp}'`);
-      }
-      if (totalSegDuration < audioDuration) {
-        const lastSeg = segmentPaths[segmentPaths.length - 1];
-        const lastSegDur = await getVideoDuration(lastSeg);
-        const extraLoops = Math.ceil((audioDuration - totalSegDuration) / lastSegDur);
-        for (let i = 0; i < extraLoops; i++) {
-          concatLines.push(`file '${lastSeg}'`);
-        }
-      }
-      await writeFile(concatListPath, concatLines.join("\n"));
-
-      console.log(`[Hailuo] Concatenating ${segmentPaths.length} segments (total ~${totalSegDuration.toFixed(1)}s) + audio (${audioDuration.toFixed(1)}s)`);
-
-      await execFileAsync(FFMPEG, [
-        "-y",
-        "-f", "concat",
-        "-safe", "0",
-        "-i", concatListPath,
-        "-i", audioPath,
-        "-t", String(audioDuration),
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        "-shortest",
-        outputPath,
-      ], { timeout: ffmpegTimeout });
+    // Check if FFmpeg is actually available before trying to use it
+    let ffmpegAvailable = false;
+    try {
+      await execFileAsync(FFMPEG, ["-version"], { timeout: 5000 });
+      ffmpegAvailable = true;
+      console.log(`[Hailuo] FFmpeg is available at: ${FFMPEG}`);
+    } catch (ffmpegCheckErr: any) {
+      console.warn(`[Hailuo] FFmpeg NOT available (${FFMPEG}): ${ffmpegCheckErr?.message}`);
     }
-    console.log(`[Hailuo] FFmpeg merge completed successfully`);
 
-    // ── Step 7: Upload final MP4 to S3 ──
-    report({ status: "uploading", step: "Uploading final video...", progress: 93 });
-    const finalBuffer = await readFile(outputPath);
+    if (ffmpegAvailable) {
+      try {
+        if (segmentPaths.length === 1) {
+          const segDuration = await getVideoDuration(segmentPaths[0]);
+          const loopCount = Math.ceil(audioDuration / segDuration);
+          console.log(`[Hailuo] Single segment (${segDuration.toFixed(1)}s), looping ${loopCount}x for ${audioDuration.toFixed(1)}s audio`);
+
+          await execFileAsync(FFMPEG, [
+            "-y",
+            "-stream_loop", String(loopCount - 1),
+            "-i", segmentPaths[0],
+            "-i", audioPath,
+            "-t", String(audioDuration),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-shortest",
+            outputPath,
+          ], { timeout: ffmpegTimeout });
+        } else {
+          const concatListPath = path.join(tmpdir(), `muse-concat-${id}.txt`);
+          tempFiles.push(concatListPath);
+
+          let totalSegDuration = 0;
+          for (const sp of segmentPaths) {
+            totalSegDuration += await getVideoDuration(sp);
+          }
+
+          const concatLines: string[] = [];
+          for (const sp of segmentPaths) {
+            concatLines.push(`file '${sp}'`);
+          }
+          if (totalSegDuration < audioDuration) {
+            const lastSeg = segmentPaths[segmentPaths.length - 1];
+            const lastSegDur = await getVideoDuration(lastSeg);
+            const extraLoops = Math.ceil((audioDuration - totalSegDuration) / lastSegDur);
+            for (let i = 0; i < extraLoops; i++) {
+              concatLines.push(`file '${lastSeg}'`);
+            }
+          }
+          await writeFile(concatListPath, concatLines.join("\n"));
+
+          console.log(`[Hailuo] Concatenating ${segmentPaths.length} segments (total ~${totalSegDuration.toFixed(1)}s) + audio (${audioDuration.toFixed(1)}s)`);
+
+          await execFileAsync(FFMPEG, [
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concatListPath,
+            "-i", audioPath,
+            "-t", String(audioDuration),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-shortest",
+            outputPath,
+          ], { timeout: ffmpegTimeout });
+        }
+        console.log(`[Hailuo] FFmpeg merge completed successfully`);
+
+        // Upload merged video
+        report({ status: "uploading", step: "Uploading final video...", progress: 93 });
+        const finalBuffer = await readFile(outputPath);
+        const key = `videos/music-video-${id}.mp4`;
+        const { url } = await storagePut(key, finalBuffer, "video/mp4");
+        console.log(`[Hailuo] Final music video uploaded: ${url} (${(finalBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
+        return url;
+      } catch (ffmpegErr: any) {
+        console.error(`[Hailuo] FFmpeg merge failed: ${ffmpegErr?.message}. Falling back to raw video upload.`);
+        // Fall through to raw upload below
+      }
+    }
+
+    // ── Fallback: Upload raw video segment directly (no audio merge) ──
+    console.log(`[Hailuo] Fallback: uploading raw video segment without audio merge`);
+    report({ status: "uploading", step: "Uploading video (without audio merge)...", progress: 93 });
+    const rawBuffer = await readFile(segmentPaths[0]);
     const key = `videos/music-video-${id}.mp4`;
-    const { url } = await storagePut(key, finalBuffer, "video/mp4");
-    console.log(`[Hailuo] Final music video uploaded: ${url} (${(finalBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
+    const { url } = await storagePut(key, rawBuffer, "video/mp4");
+    console.log(`[Hailuo] Raw video uploaded (no audio): ${url} (${(rawBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
     return url;
 
   } finally {

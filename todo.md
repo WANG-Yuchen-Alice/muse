@@ -152,3 +152,4 @@
 - [x] Add vitest tests for generateVideo and videoJobStatus endpoints (29 tests pass)
 - [x] Optimize: Generate 1 Hailuo segment and loop to match audio length (reduce ~8min to ~2min)
 - [x] Bug: spawn ffmpeg ENOENT in deployed environment — replaced ffmpeg-static with @ffmpeg-installer/ffmpeg (reliable binary bundling)
+- [x] Bug: Video generation stuck at 'Merging video + audio' — added FFmpeg availability check + fallback to raw video upload
