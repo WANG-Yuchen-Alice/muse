@@ -17,18 +17,35 @@ import { promisify } from "util";
 import { writeFile, unlink, readFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
-import ffmpegPath from "ffmpeg-static";
-import ffprobePath from "ffprobe-static";
+import { existsSync } from "fs";
+import { createRequire } from "module";
 
 const execFileAsync = promisify(execFile);
+const _require = createRequire(import.meta.url);
 
-// Use static binaries for ffmpeg/ffprobe (works in deployed environments)
-// ffmpeg-static exports the path as default, ffprobe-static exports { path }
-// Check if the static binary actually exists; fall back to system binary if not
-import { existsSync } from "fs";
-const FFMPEG = (ffmpegPath && existsSync(ffmpegPath)) ? ffmpegPath : "ffmpeg";
-const _ffprobePath = (ffprobePath as any)?.path || (typeof ffprobePath === "string" ? ffprobePath : null);
-const FFPROBE = (_ffprobePath && existsSync(_ffprobePath)) ? _ffprobePath : "ffprobe";
+// Resolve FFmpeg binary: try @ffmpeg-installer first (bundles binary reliably),
+// then ffmpeg-static, then system ffmpeg as last resort.
+function resolveFFmpeg(): string {
+  try {
+    const installer = _require("@ffmpeg-installer/ffmpeg");
+    if (installer?.path && existsSync(installer.path)) return installer.path;
+  } catch (e) { console.warn("[FFmpeg] @ffmpeg-installer/ffmpeg not available:", (e as Error).message); }
+  try {
+    const staticPath = _require("ffmpeg-static");
+    if (staticPath && existsSync(staticPath)) return staticPath;
+  } catch (e) { console.warn("[FFmpeg] ffmpeg-static not available:", (e as Error).message); }
+  return "ffmpeg";
+}
+function resolveFFprobe(): string {
+  try {
+    const probe = _require("ffprobe-static");
+    const p = probe?.path || (typeof probe === "string" ? probe : null);
+    if (p && existsSync(p)) return p;
+  } catch {}
+  return "ffprobe";
+}
+const FFMPEG = resolveFFmpeg();
+const FFPROBE = resolveFFprobe();
 console.log(`[FFmpeg] Using: ${FFMPEG}, ffprobe: ${FFPROBE}`);
 
 const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY ?? "";
