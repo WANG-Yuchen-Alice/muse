@@ -186,31 +186,23 @@ export default function Landing() {
             variants={stagger}
             className="space-y-6"
           >
-            {/* Badge */}
-            <motion.div variants={fadeUp} custom={0}>
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium border border-cyan-glow/30 text-cyan-glow bg-cyan-glow/5">
-                <Sparkles className="w-3.5 h-3.5" />
-                Powered by Google Lyria 3 + Meta MusicGen
-              </span>
-            </motion.div>
-
             {/* Headline */}
             <motion.h1
               variants={fadeUp}
-              custom={1}
+              custom={0}
               className="font-display text-5xl sm:text-6xl md:text-7xl font-bold leading-[1.1] tracking-tight"
             >
-              Your melody.
+              Turn your hum
               <br />
-              <span className="gradient-cosmic-text">AI-composed.</span>
+              <span className="gradient-cosmic-text">into music.</span>
               <br />
-              Video-ready.
+              Go viral.
             </motion.h1>
 
             {/* Subtitle */}
             <motion.p
               variants={fadeUp}
-              custom={2}
+              custom={1}
               className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
             >
               Hum a tune or tap a melody. Muse transforms it into a
@@ -221,7 +213,7 @@ export default function Landing() {
             {/* CTA */}
             <motion.div
               variants={fadeUp}
-              custom={3}
+              custom={2}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
             >
               <Button
@@ -246,7 +238,7 @@ export default function Landing() {
             {/* Social proof */}
             <motion.div
               variants={fadeUp}
-              custom={4}
+              custom={3}
               className="flex items-center justify-center gap-6 pt-6 text-muted-foreground/60 text-sm"
             >
               <span className="flex items-center gap-1">
@@ -490,7 +482,7 @@ export default function Landing() {
                 Music videos that match your vibe.
               </h3>
               <p className="text-muted-foreground leading-relaxed mb-4">
-                Powered by Google Veo, Muse generates stunning 9:16 vertical
+                Muse generates stunning 9:16 vertical
                 music videos perfectly synced to your track. One tap from
                 creation to TikTok-ready content.
               </p>
@@ -676,7 +668,7 @@ export default function Landing() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground/40">
-            Powered by Google Lyria 3, Meta MusicGen, and Google Veo
+            Built for APAC AI New Bets Hackathon 2026
           </p>
         </div>
       </footer>
