@@ -291,7 +291,8 @@ async function convertToMp3(audioUrl: string): Promise<Buffer> {
   try {
     await writeFile(inputPath, Buffer.from(response.data));
     await execFileAsync(FFMPEG, [
-      "-y", "-i", inputPath,
+      "-y", "-loglevel", "error", "-nostats",
+      "-i", inputPath,
       "-codec:a", "libmp3lame", "-b:a", "192k",
       "-ar", "44100", "-ac", "2",
       outputPath,
@@ -621,7 +622,7 @@ async function generateAISceneVideoWithProgress(
           console.log(`[Hailuo] Single segment (${segDuration.toFixed(1)}s), looping ${loopCount}x for ${audioDuration.toFixed(1)}s audio`);
 
           await execFileAsync(FFMPEG, [
-            "-y",
+            "-y", "-loglevel", "error", "-nostats",
             "-stream_loop", String(loopCount - 1),
             "-i", segmentPaths[0],
             "-i", audioPath,
@@ -661,7 +662,7 @@ async function generateAISceneVideoWithProgress(
           console.log(`[Hailuo] Concatenating ${segmentPaths.length} segments (total ~${totalSegDuration.toFixed(1)}s) + audio (${audioDuration.toFixed(1)}s)`);
 
           await execFileAsync(FFMPEG, [
-            "-y",
+            "-y", "-loglevel", "error", "-nostats",
             "-f", "concat",
             "-safe", "0",
             "-i", concatListPath,
@@ -726,7 +727,7 @@ async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<B
       await writeFile(imagePath, Buffer.from(imageResp.data));
       // Create MP4 with static image + audio (9:16 vertical)
       await execFileAsync(FFMPEG, [
-        "-y",
+        "-y", "-loglevel", "error", "-nostats",
         "-loop", "1", "-i", imagePath,
         "-i", audioPath,
         "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
@@ -740,7 +741,7 @@ async function createMp4WithImage(audioUrl: string, imageUrl: string): Promise<B
     } else {
       // No image — create a simple black video with audio (9:16 vertical)
       await execFileAsync(FFMPEG, [
-        "-y",
+        "-y", "-loglevel", "error", "-nostats",
         "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=30",
         "-i", audioPath,
         "-c:v", "libx264",

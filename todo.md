@@ -153,3 +153,4 @@
 - [x] Optimize: Generate 1 Hailuo segment and loop to match audio length (reduce ~8min to ~2min)
 - [x] Bug: spawn ffmpeg ENOENT in deployed environment — replaced ffmpeg-static with @ffmpeg-installer/ffmpeg (reliable binary bundling)
 - [x] Bug: Video generation stuck at 'Merging video + audio' — added FFmpeg availability check + fallback to raw video upload
+- [x] Bug: FFmpeg stderr encoding progress logs leaking to frontend UI overlay — added -loglevel error -nostats to all FFmpeg calls
