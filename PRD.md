@@ -1,6 +1,6 @@
 # Muse — Product Requirements Document
 
-**Version:** 3.0
+**Version:** 4.0
 **Date:** March 30, 2026
 **Authors:** Muse Team
 **Hackathon:** APAC AI New Bets Hackathon
@@ -9,37 +9,151 @@
 
 ## Executive Summary
 
-Muse is an AI-powered music creation platform that transforms anyone into a music producer. Users hum a melody, and Muse's AI engine generates polished, multi-style music tracks with cinematic scene videos optimized for social sharing on Instagram Reels, TikTok, and YouTube Shorts. The platform eliminates the need for musical training, expensive software, or production expertise, making the creative process as intuitive as humming a tune.
+Muse is building the **AI music collaborator that learns with you** — a platform where anyone can create, evolve, and share original music starting from the most natural human musical expression: humming. Today, Muse converts a hum into a polished, multi-style music track with an AI-generated scene video optimized for social sharing. Tomorrow, Muse becomes your personal music intelligence — learning your melodic patterns, suggesting harmonic progressions, generating full albums, creating visual identities, and distributing to Spotify and Apple Music.
 
-The platform leverages Google's Lyria 3 for creative reimagination, Meta's MusicGen for faithful melody reproduction, MiniMax's Hailuo 2.3 for AI scene video generation, and Spotify's Basic Pitch for intelligent hum-to-notes conversion. Muse targets the intersection of three converging markets: AI music generation ($569M in 2024, projected to reach $2.8B by 2030 [1]), short-form video content creation (2B+ daily Reels plays on Instagram [2]), and the creator economy ($250B+ globally [3]).
+The current product is the entry point to this larger vision, not the destination. The hum-to-music-to-video pipeline is the content generation engine that bootstraps the user base, content library, and — critically — the **proprietary melody-correction dataset** that becomes Muse's durable competitive advantage. Every time a user edits their detected melody on the piano keyboard, they generate a labeled training pair (raw hum → intended melody) that no competitor possesses. This data flywheel is what transforms Muse from an API integration layer into a company with a defensible model advantage.
 
-This document is structured as both a product specification and a strategic playbook. It addresses not only what Muse builds, but how Muse learns, defends, and scales — with explicit treatment of unit economics, privacy architecture, growth instrumentation, platform abstraction, and the path to durable competitive advantage through community network effects.
+This document is structured as a strategic playbook, not a feature list. It addresses the hardest questions first: why Muse survives when Suno ships hum input, how the unit economics work at realistic conversion rates, what the product experience actually feels like on a budget Android phone in Mumbai, and what must be true before a single dollar is spent on acquisition.
 
 **Tagline:** *Turn your hum into music. Go viral.*
 
 ---
 
-## 1. Problem Statement
+## 1. The Bigger Vision: AI Music Collaborator
 
-### 1.1 The Creation Gap
+### 1.1 Why "Hum-to-TikTok" Is Thinking Small
 
-Over 80% of people enjoy music daily, yet fewer than 5% can create it. The barrier is not a lack of creativity or desire — it is the prohibitive complexity of traditional music production. Professional Digital Audio Workstations (DAWs) like Ableton Live, Logic Pro, and FL Studio require months of learning, cost hundreds of dollars, and demand knowledge of music theory, mixing, and mastering. This creates what we call the **Creation Gap**: the vast distance between having a musical idea (a melody in your head, a rhythm you tap on a desk) and producing a shareable piece of music.
+The current product makes a 30-second clip and shares it on TikTok. That is a feature inside a much larger product. The real opportunity is an **AI music collaborator that grows with you** — a system that understands your musical taste, remembers your melodic patterns, and becomes a better creative partner with every session.
 
-Existing AI music tools like Suno ($2.45B valuation, $200M ARR [4]) and Udio have begun to close this gap, but they approach the problem from a text-prompt paradigm — users describe music in words ("upbeat electronic track with synth pads"). This approach fundamentally misunderstands how most people experience music: not through verbal description, but through **feeling, humming, and movement**. When you have a melody stuck in your head, you hum it — you do not write a paragraph describing it.
+| Horizon | Product | User Experience | Moat Layer |
+|---|---|---|---|
+| **H1 (Now)** | Hum-to-music-to-video creation tool | Hum → get a track → share a video | Content library + melody correction data |
+| **H2 (6-12 months)** | Personal music intelligence | "Play something like what I hummed last Tuesday, but jazzier" | Personalized style models per user |
+| **H3 (18-36 months)** | Full music production platform | Generate albums, create artist visual identity, distribute to DSPs | Creator economy network effects + distribution partnerships |
 
-### 1.2 The Distribution Bottleneck
+The H1 product is not the vision — it is the **data collection mechanism** for the vision. Every hum, every melody correction, every style preference, every share decision is a training signal. The question is not whether the current product is defensible (it is not). The question is whether it generates enough data and retention to reach H2 before a competitor does.
 
-Even when users successfully create music with existing tools, they face a second barrier: **distribution**. Raw audio files are not shareable on social media. The dominant content format across Instagram Reels, TikTok, and YouTube Shorts is short-form video with synchronized visuals. Converting an audio track into a visually compelling, platform-optimized video requires video editing skills, visual design sense, and knowledge of platform-specific formats (9:16 aspect ratio, 15-60 second duration, attention-grabbing first frames).
+### 1.2 The Suno Threat — Honest Assessment
 
-Muse solves both problems in a single, seamless flow: **Hum → Music → Video → Share**.
+If Suno announced hum-to-music input tomorrow, what would Muse have that they cannot replicate in 90 days?
+
+**Today (honest answer):** Very little. The dual-engine approach, video generation, and style-matched visuals are API calls. Suno could replicate the feature bundle with their existing $200M ARR and $2.45B valuation [4].
+
+**In 6 months (if we execute):** Three things Suno cannot easily replicate:
+
+1. **Proprietary melody-correction dataset.** Every piano keyboard edit generates a (raw_hum, intended_melody) training pair. At 50K corrections/month, Muse accumulates a unique dataset for fine-tuning hum-to-melody models that no text-prompt-first competitor has incentive to collect. Suno's users type text — they do not correct melodies.
+
+2. **Hum-native community graph.** A social network where the atomic unit of content is a melody (not a finished track) creates different social dynamics than Suno's prompt-sharing community. Melody remixing, harmonic collaboration, and "melody chains" are interaction patterns that do not exist in text-prompt ecosystems.
+
+3. **Mobile-first APAC distribution.** Suno is a desktop-first, English-first product. Muse is designed for the mobile-first, multilingual APAC market (India, Southeast Asia, Japan) where the next 500M music consumers are coming online. This is a distribution advantage, not a product advantage — but distribution advantages compound.
+
+**What must be true:** Muse must reach 100K melody corrections and 50K community interactions before Suno ships hum input. That is the race.
 
 ---
 
-## 2. Market Sizing
+## 2. Product Experience — What It Actually Feels Like
 
-### 2.1 Top-Down Market Context
+### 2.1 The Honest UX Assessment
 
-The TAM for Muse sits at the intersection of three converging markets. These figures establish the ceiling of opportunity, not a forecast of capture.
+The tagline says "Turn your hum into music" — implying simplicity, magic, delight. The actual experience today involves 11 steps and 4-6 minutes. This section describes what the experience actually is, and what it needs to become.
+
+**Current experience (measured on desktop, good connection):**
+
+| Step | Action | Duration | Emotional State |
+|---|---|---|---|
+| 1 | Land on page, see hero | 2s | Curious |
+| 2 | Tap "Create Your First Track" | 0s | Excited |
+| 3 | Grant microphone permission | 3s | Slight friction |
+| 4 | Hum a melody (up to 10s) | 3-10s | Creative, engaged |
+| 5 | Wait for pitch detection | 3-5s | Anxious — "did it work?" |
+| 6 | See notes on piano, verify/edit | 10-30s | Confused if non-musical; delighted if musical |
+| 7 | Select styles (1-3 from 10) | 5-10s | Choice overload possible |
+| 8 | Tap "Generate" | 0s | Anticipation |
+| 9 | Wait for music generation | 60-90s | Boredom risk — fun facts help but do not solve |
+| 10 | Browse results, play tracks | 30-60s | Delight (if quality is good) or disappointment |
+| 11 | Optional: generate video (~120s more) | 120s | Patience tested |
+| **Total** | | **4-6 min** | **Rollercoaster** |
+
+### 2.2 The Mobile-First APAC Reality
+
+Muse's primary market is APAC — India, Southeast Asia, Japan. The median user in this market is on a **budget Android phone (2-4GB RAM) over a 3G/4G connection with 5-15 Mbps bandwidth and 100-300ms latency** [6]. The current web app has not been tested or optimized for this environment.
+
+**Known risks on constrained devices:**
+
+| Component | Risk | Mitigation (Phase 1.5) |
+|---|---|---|
+| WebAssembly Basic Pitch (Phase 2) | Multi-MB WASM binary may not load on 3G | Progressive loading; server fallback for slow connections |
+| Audio recording (Web Audio API) | Works on modern mobile browsers, but quality varies | Test on 10 most common APAC Android devices; provide recording quality indicator |
+| 60-90s generation wait | User switches to another app; loses context | Push notification when ready (PWA); email notification fallback |
+| Video streaming (MP4) | Buffering on slow connections | Adaptive bitrate; offer audio-only share option |
+| Full page load | Heavy React SPA may be slow on 3G | Measure and optimize Core Web Vitals; target LCP < 3s on 4G |
+
+**Pre-launch validation plan:** Before any paid acquisition, run **50 in-person user sessions** with target users in Mumbai and Jakarta on their own devices. Observe where they struggle, where they drop off, and whether they complete the creation flow. This is the single highest-ROI activity the team can do.
+
+### 2.3 The Path to 60-Second Creation
+
+The PM crit is right: 4-6 minutes is not "effortless magic." The target is a **60-second core creation experience** (hum to hearing your first track). Here is the concrete path:
+
+| Improvement | Time Saved | New Total | Timeline | How |
+|---|---|---|---|---|
+| **Baseline (current)** | — | 4-6 min | Shipped | — |
+| Auto-skip piano for high-confidence (>0.85) detections | -15s avg | 3.5-5 min | Phase 1.5 | Skip step 6 for 70% of users; show "Edit melody" as secondary |
+| On-device pitch detection (WASM) | -4s | 3-4.5 min | Phase 2 | Eliminate server round-trip |
+| Default single style (auto-selected by mood) | -8s | 2.5-4 min | Phase 1.5 | Pre-select best-fit style; "More styles" as secondary |
+| Streaming audio preview (first 5s) | -50s perceived | **~60s to first audio** | Phase 2 | Stream partial result while full generation continues |
+| Background video generation (auto-start) | -120s from flow | 60s core + video arrives later | Phase 2 | Auto-trigger video after music; notify when ready |
+
+The "Quick Create" mode (Phase 2) compresses the flow to: **Hum → Auto-detect → Auto-generate → Hear preview in ~60 seconds.** Video generation happens in the background and the user is notified when it is ready. Advanced users can still access the full flow with piano editing and multi-style selection.
+
+### 2.4 Community Experience Design — Not Just Feature Names
+
+The PM crit correctly identified that "user profiles with follower graphs" and "algorithmic discovery feed" are feature names, not experiences. Here is what the community layer actually feels like:
+
+**Discovery Feed Experience:**
+You open Muse and see a feed of short music videos — not from artists you follow, but from people like you. A college student in Bangalore hummed a melody while walking to class; Muse turned it into a lo-fi track with rain-on-window visuals. You tap it, hear 15 seconds, and think "I could do that." You tap "Remix this melody" — Muse loads their original notes into your piano, and you can rearrange, extend, or transform them. Your remix credits the original creator. When you share your version, their follower count goes up too.
+
+**Remix Chain Experience:**
+A melody starts as 8 notes hummed by a teenager in Tokyo. Someone in Jakarta adds a bridge. Someone in Mumbai changes the key and adds a Bollywood-style arrangement. The "melody chain" page shows the family tree — every fork, every transformation, every creator credited. The original melody has been remixed 47 times. The teenager in Tokyo has 2,000 followers and has never played an instrument.
+
+**Deletion and Lineage:**
+When Creator A deletes their account, their original melody is **tombstoned** — the notes are retained as an anonymous seed for the remix chain, but the creator profile is removed. Derivative works are not deleted because they are transformative creations by other users. The tombstone record preserves the chain's integrity while respecting the deletion request. This is the same approach used by Git (commits persist after author account deletion) and Wikipedia (edit history persists after user account deletion).
+
+---
+
+## 3. Proprietary Data Flywheel
+
+### 3.1 The Melody Correction Dataset
+
+This is Muse's most important strategic asset — and the one the PM crit correctly identified as underspecified. Here is the concrete plan.
+
+**What the data is:** Every time a user records a hum and then edits the detected notes on the piano keyboard, Muse captures a training pair:
+
+| Input | Output | Metadata |
+|---|---|---|
+| Raw pitch detection result (note sequence + confidence scores) | User-corrected note sequence | Device type, recording quality score, user's correction history |
+
+**Why this is valuable:** Current hum-to-melody models (including Basic Pitch) are trained on clean vocal recordings, not on the messy, noisy, off-pitch hums that real users produce. A model fine-tuned on real-world hum corrections would significantly outperform generic pitch detection — especially for non-musical users who hum imprecisely.
+
+**Scale targets:**
+
+| Milestone | Corrections | Training Viability | Timeline |
+|---|---|---|---|
+| Seed | 10K | Enough for evaluation; not for training | Month 3 |
+| Minimum viable | 50K | Fine-tune Basic Pitch on correction pairs | Month 6 |
+| Competitive advantage | 200K | Train custom hum-to-melody model | Month 12 |
+| Defensible moat | 1M+ | Model accuracy gap too large to close without similar data | Month 24 |
+
+**Privacy note:** The correction dataset contains only MIDI note sequences (before and after), not raw audio. No biometric data is stored. Users are informed that their melody corrections improve the AI (consent obtained at account creation).
+
+### 3.2 Personalized Style Models (H2 Vision)
+
+At 50+ sessions per user, Muse has enough data to build a **personal style profile**: preferred genres, typical melodic patterns (ascending vs. descending, interval preferences), tempo ranges, and instrument choices. This enables "Generate something in my style" — no hum needed, the AI knows your taste — and "Make this more like my Tuesday session" — cross-session memory. This is the transition from tool to collaborator. A tool does what you tell it. A collaborator anticipates what you want.
+
+---
+
+## 4. Market Sizing — Revised
+
+### 4.1 Top-Down Context (Ceiling, Not Forecast)
 
 | Market Segment | 2024 Size | 2030 Projected | CAGR | Source |
 |---|---|---|---|---|
@@ -47,275 +161,220 @@ The TAM for Muse sits at the intersection of three converging markets. These fig
 | Creator Economy | $250B+ | $480B+ | ~15% | Goldman Sachs [3] |
 | Short-Form Video Tools | $1.8B | $8.2B | ~28% | Mordor Intelligence [5] |
 
-### 2.2 Bottoms-Up Growth Model
+### 4.2 Bottoms-Up Growth Model — Revised with LTV/CAC Honesty
 
-Rather than relying solely on top-down TAM projections, Muse's growth model is built from measurable viral loop mechanics. The model below uses conservative assumptions that will be validated and refined through instrumentation (see Section 10).
+The v3.0 model showed a k-factor of 0.18 (sub-viral) and assumed $85K in paid acquisition. The PM crit correctly identified that the LTV/CAC ratio through paid channels is 0.18 — meaning **the business loses money on every non-virally acquired user.** This fundamentally changes the growth strategy.
 
-**Viral Loop Mechanics:**
+**Revised strategy: Zero paid acquisition until k-factor > 0.5.**
 
-Each Muse creation that is shared to a social platform becomes a user acquisition channel. The viral coefficient (k-factor) is the product of three measurable rates:
-
-| Variable | Definition | Conservative Estimate | Optimistic Estimate |
+| Phase | Growth Strategy | Spend | Rationale |
 |---|---|---|---|
-| Share Rate | % of completed creations shared to social | 15% | 30% |
-| Click-Through Rate | % of viewers who click the Muse link | 3% | 6% |
-| Signup Rate | % of clickers who create an account | 20% | 35% |
-| Avg. Social Reach | Views per shared video | 200 | 500 |
-| **k-factor** | Share Rate x Reach x CTR x Signup | **0.18** | **1.05** |
+| Months 1-3 | Organic only (Product Hunt, Hacker News, creator seeding, SEO) | $5K | Validate retention and share rates with real users |
+| Months 3-6 | Micro-influencer partnerships (barter, not paid) | $10K | Test viral loop mechanics with real content |
+| Months 6-12 | Paid acquisition ONLY if k > 0.5 and LTV/CAC > 3 | $0-70K | Gate spending on proven unit economics |
 
-A k-factor below 1.0 means organic virality alone will not sustain growth — paid acquisition and content marketing are required to supplement. A k-factor above 1.0 creates self-sustaining viral growth. The conservative model assumes Muse operates in the sub-viral regime initially and must earn its way to viral growth through product quality improvements.
+**Revised bottoms-up projection (organic-first):**
 
-**Year 1 Bottoms-Up Projection:**
-
-| Month | Seed Users (Paid/Organic) | Viral Invites (k=0.18) | Cumulative Users | DAU (15% of MAU) |
+| Month | Organic Users | Viral Invites (k=0.18→0.3) | Cumulative | DAU (15%) |
 |---|---|---|---|---|
-| 1 | 5,000 | 900 | 5,900 | 885 |
-| 3 | 15,000 | 8,100 | 38,000 | 5,700 |
-| 6 | 30,000 | 27,000 | 105,000 | 15,750 |
-| 12 | 50,000 | 72,000 | 310,000 | 46,500 |
+| 1 | 3,000 | 540 | 3,540 | 531 |
+| 3 | 8,000 | 4,800 | 20,000 | 3,000 |
+| 6 | 15,000 | 13,500 | 55,000 | 8,250 |
+| 12 | 25,000 | 37,500 | 150,000 | 22,500 |
 
-This bottoms-up model yields approximately 310K users at Year 1 under conservative assumptions — notably lower than the 500K top-down target. The gap represents the validation work required: improving share rates, click-through rates, and the core creation experience to push the k-factor upward.
-
-### 2.3 Cost-Per-Acquisition Analysis
-
-For the non-viral portion of growth, Muse plans channel-specific acquisition:
-
-| Channel | Est. CPA | Year 1 Budget | Users Acquired | Notes |
-|---|---|---|---|---|
-| TikTok creator partnerships | $1.50 | $45,000 | 30,000 | Muse-created content as ads |
-| Instagram Reels seeding | $2.00 | $30,000 | 15,000 | Influencer collaborations |
-| Organic SEO/content | $0.50 | $10,000 | 20,000 | "AI music maker" keywords |
-| Product Hunt / Hacker News | $0 | $0 | 5,000 | Launch campaigns |
-| **Blended CPA** | **$1.21** | **$85,000** | **70,000** | |
-
-These acquisition costs are viable only if the LTV of acquired users exceeds the blended CPA — which depends on the unit economics and conversion rates modeled in Section 8.
+This is a smaller, more honest projection: 150K users at Year 1 instead of 310K. The trade-off is that every user is acquired at near-zero cost, making the unit economics viable from day one.
 
 ---
 
-## 3. Strategic Vision and Competitive Moat
+## 5. Unit Economics — Stress-Tested
 
-### 3.1 The Moat Problem — and Our Answer
+### 5.1 Revised Pricing
 
-We acknowledge the central challenge raised by the PM crit panel: hum-first input, dual-engine generation, and AI video are product decisions, not moats. Any well-funded competitor could replicate these features within 90 days by calling the same APIs. Suno, with $200M ARR and a $2.45B valuation, could announce hum-to-music input tomorrow.
+Based on the PM crit that $8/mo is too low to create real margin, and that the price floor should be $12-15/mo:
 
-Muse's durable competitive advantage does not come from any single feature. It comes from **community network effects** — the compounding value created when users share, discover, remix, and build on each other's musical creations. This is the only moat candidate that grows stronger with scale and cannot be replicated by a competitor on day one.
+| Tier | Price | Generations | Video | Target |
+|---|---|---|---|---|
+| **Free** | $0 | 3/week, audio only | No video (paid feature) | Trial users |
+| **Creator** | $12/mo | 40/month | HD video, no watermark | Regular creators |
+| **Pro** | $20/mo | Unlimited | 4K video, priority queue, API | Power users |
 
-### 3.2 Revised Strategic Roadmap — Community First
+### 5.2 Revised Cost Model
 
-Based on the PM crit feedback, we have restructured the roadmap to pull community and social features forward from Phase 4 to Phase 2, and removed speculative hardware integrations (smart glasses, VR) entirely.
+| Component | Per-Unit | Free (3/wk, no video) | Creator ($12, 40/mo) | Pro ($20, 80/mo) |
+|---|---|---|---|---|
+| Music generation | $0.07 | $0.84/mo | $2.80/mo | $5.60/mo |
+| Video generation | $0.10 | $0/mo | $1.00/mo | $2.00/mo |
+| Image + LLM | $0.015 | $0.18/mo | $0.60/mo | $1.20/mo |
+| Infrastructure | $0.01 | $0.12/mo | $0.40/mo | $0.80/mo |
+| **Total cost** | | **$1.14/mo** | **$4.80/mo** | **$9.60/mo** |
+| **Revenue** | | **$0** | **$12.00** | **$20.00** |
+| **Gross margin** | | **-$1.14** | **$7.20 (60%)** | **$10.40 (52%)** |
 
-| Phase | Timeline | Focus | Key Deliverables |
-|---|---|---|---|
-| **Phase 1** | Q2 2026 (Current) | **Creation Engine** | Hum/play input, dual-engine generation, 10 styles, AI video, social share, community gallery, analytics instrumentation |
-| **Phase 2** | Q3 2026 | **Social Network Foundation** | User profiles with follower graphs, melody remix chains (fork a melody, credit the original), collaborative duets, algorithmic discovery feed, notification system |
-| **Phase 3** | Q4 2026 | **Network Effects Flywheel** | Remix leaderboards, creator monetization (tips, premium remixes), trending melodies feed, cross-platform embed widgets, public API (v1) |
-| **Phase 4** | H1 2027 | **Platform Scale** | Enterprise API, white-label SDK, third-party style packs marketplace, advanced analytics for creators |
+### 5.3 Breakeven Analysis — Why Organic-First Is Non-Negotiable
 
-The critical insight is that **every quarter we delay building network effects is a quarter a competitor could use to build them first**. The creation tool (Phase 1) generates the content library; the social network (Phase 2) makes that library defensible.
+At 5% conversion with a 70/30 Creator/Pro mix:
 
-### 3.3 Why the Sequencing Works
+| Metric | Value |
+|---|---|
+| Revenue per paid user (blended) | $14.40/mo |
+| Cost per paid user (blended) | $6.24/mo |
+| Gross margin per paid user | $8.16/mo |
+| Free users per paid user (at 5% conversion) | 19 |
+| Free tier subsidy (19 × $1.14) | $21.66/mo |
+| **Net margin per paid user (after free subsidy)** | **-$13.50/mo** |
 
-Building the creation tool first is not a delay — it is a prerequisite. A music social network requires a critical mass of content and users. You cannot launch a TikTok-for-AI-music to an empty room. The Phase 1 pipeline (hum → music → video → share) is the content generation engine that fills the social network. The sequencing is: build the creation tool, accumulate a content library and user base, then layer on the social graph. The critical question is whether the tool is sticky enough to retain users long enough to reach that critical mass — which is why retention instrumentation (Section 10) is a Phase 1 priority, not a Phase 2 afterthought.
+**The free tier subsidy still dominates.** The path to viability:
 
-### 3.4 Defensibility Layers
-
-| Layer | Description | Time to Replicate |
+| Lever | Impact | Timeline |
 |---|---|---|
-| **Community graph** | Follower relationships, remix chains, collaborative history | 12-18 months (requires content + users) |
-| **Content library** | Thousands of user-created melodies, tracks, and videos | 6-12 months (requires active user base) |
-| **Proprietary data** | Hum-to-melody conversion accuracy improvements from user corrections | 6 months (requires training data) |
-| **Brand association** | "Muse" as the verb for hum-to-music creation | 3-6 months (requires viral moments) |
-| **Feature bundle** | Hum input + dual engine + video + social (table stakes) | 90 days (API calls, replicable) |
+| Self-hosted MusicGen (40% music gen cost reduction) | Free tier cost drops to $0.65/mo; subsidy drops to $12.35 | Phase 2 (Month 8) |
+| Higher conversion (8% vs 5%) | Free users per paid drops to 11.5; subsidy drops to $7.48 | Requires D7 > 20% |
+| Self-hosted + 8% conversion | Net margin: +$0.68/mo per paid user | **Viable** |
+| Self-hosted + 8% conversion + 40% Pro mix | Net margin: +$2.64/mo per paid user | **Healthy** |
 
-The feature bundle is the least defensible layer. The community graph is the most defensible. The roadmap is designed to build upward through these layers as quickly as possible.
+**The model works at 8% conversion with self-hosted inference and 40% Pro mix.** This is aggressive but achievable — Suno's estimated conversion is 6-10% [4]. The critical dependency is D7 retention > 20%, which must be validated before any scaling.
 
----
+### 5.4 LTV/CAC — Why Paid Acquisition Is Gated
 
-## 4. Product Architecture
-
-### 4.1 Core User Flow
-
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   INPUT      │     │  GENERATION  │     │   VIDEO      │     │   SHARE      │
-│              │     │              │     │              │     │              │
-│ Hum melody   │────▶│ Lyria 3      │────▶│ Hailuo 2.3   │────▶│ Instagram    │
-│ Play piano   │     │ (Reimagined) │     │ Scene video  │     │ TikTok       │
-│ Choose style │     │              │     │ 9:16 format  │     │ WhatsApp     │
-│ (1-3 styles) │     │ MusicGen     │     │ Style-matched│     │ Community    │
-│              │     │ (Faithful)   │     │ visuals      │     │              │
-└─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-```
-
-### 4.2 Honest UX Assessment — Steps and Wait Times
-
-We acknowledge that the current user journey involves more steps and longer wait times than the tagline "Turn your hum into music" implies. Transparency about this gap is essential for prioritizing UX improvements.
-
-**Current Flow (measured):**
-
-| Step | User Action | Wait Time | Notes |
-|---|---|---|---|
-| 1 | Land on page, tap "Create" | 0s | Immediate |
-| 2 | Tap record, hum melody | 3-10s | User-controlled |
-| 3 | Stop recording | 0s | Immediate |
-| 4 | Wait for pitch detection | 3-5s | Basic Pitch ML processing |
-| 5 | Verify/edit notes on piano | 10-30s | Optional but shown by default |
-| 6 | Select styles (1-3) | 5-10s | Default pre-selected |
-| 7 | Tap "Generate" | 0s | Immediate |
-| 8 | Wait for music generation | 60-90s | Parallel generation, fun facts shown |
-| 9 | Browse results, play tracks | 30-60s | User-controlled |
-| 10 | Tap "Generate Video" | 0s | Optional |
-| 11 | Wait for video generation | ~120s | Background job with progress |
-| **Total** | | **~4-6 min** | **Including all waits** |
-
-This is not a "60-second core action" product today. The path to reducing this is documented in the UX Improvement Roadmap (Section 4.3).
-
-### 4.3 UX Improvement Roadmap
-
-| Improvement | Impact | Timeline | Technical Approach |
-|---|---|---|---|
-| **On-device pitch detection** (WebAssembly Basic Pitch) | Eliminates 3-5s server round-trip; eliminates biometric data transmission | Phase 2 | Compile Basic Pitch ONNX model to WASM; send only extracted notes to server |
-| **Skip piano verification** for confident detections | Removes 10-30s step for 70%+ of users | Phase 1.5 | Auto-skip when detection confidence > 0.85; show "Edit melody" as secondary action |
-| **Instant preview** during generation | Reduces perceived wait from 90s to 15s | Phase 2 | Stream first 5 seconds of audio as soon as available; progressive reveal |
-| **Pre-generated video templates** | Reduces video wait from 120s to 10s | Phase 2 | Pre-render style-matched video loops; overlay user's audio in-browser |
-| **One-tap "Quick Create"** | Reduces total flow to 3 steps | Phase 2 | Hum → auto-detect → auto-generate with default style; skip all intermediate screens |
-
-The on-device pitch detection improvement is particularly strategic because it simultaneously solves a UX problem (latency), a privacy problem (biometric data never leaves the device), and a cost problem (eliminates server-side ML inference). This is a feature, not a compliance burden.
-
-### 4.4 Hum-to-Notes Pipeline
-
-Muse's hum detection pipeline converts raw vocal input into structured musical notes through a multi-stage process. Audio is captured via the Web Audio API with real-time pitch visualization (maximum 10 seconds). Spotify's Basic Pitch ML model analyzes the audio to extract note onsets, pitches, and durations. A smart sampling algorithm filters the raw output — downsampling to the strongest note per time window, filtering out semitones to keep only natural notes (C, D, E, F, G, A, B), and removing harmonic artifacts. The extracted notes are displayed on an interactive 2-octave piano keyboard (C4-B5) where users can verify, edit, and confirm before generation.
-
-### 4.5 Dual-Engine Music Generation
-
-Muse employs two complementary AI models to give users creative choice. **Lyria 3 Clip (Reimagined)** is Google's state-of-the-art music generation model that takes the user's melody as inspiration and reimagines it with professional arrangement, harmonization, and production. It supports lyrics and vocal generation and produces 30-second tracks. **MusicGen (Faithful)** is Meta's open-source model hosted on Replicate that stays closer to the original melody's structure and rhythm, producing instrumental tracks. Each generation session produces tracks in the user's selected styles (up to 3 from 10 available genres), with both Reimagined and Faithful variants per style, giving users up to 6 unique tracks from a single hum.
-
-### 4.6 AI Scene Video Generation
-
-Using MiniMax's Hailuo 2.3 model via Replicate, Muse generates cinematic scene videos that visually match the music's mood and style. The pipeline uses a background job + polling architecture: the client sends a `generateVideo` mutation that immediately returns a `jobId`, while the actual generation runs as a background process. An LLM crafts a detailed cinematic scene description based on the track's style, mood, and cover art. Hailuo 2.3 generates a single 10-second video segment at 768p resolution, which FFmpeg loops to match the audio duration and merges with the music track. The frontend polls for progress every 3 seconds, receiving real-time step and percentage updates. Total generation time is approximately 2 minutes.
-
-**Addressing video quality and personalization:** The current style-to-visual mapping produces genre-appropriate but generic scenes (e.g., "rain on window" for every lo-fi track). Phase 2 will introduce **melody-aware scene prompts** that incorporate the specific notes, tempo, and energy curve of each track to generate visually unique videos even within the same genre. Additionally, user-uploaded reference images will allow personal visual elements, making each video feel "made by me" rather than "made by AI."
-
----
-
-## 5. Privacy Architecture and Data Lifecycle
-
-### 5.1 Why Privacy Is a Launch Requirement
-
-Muse captures audio recordings of people humming — which constitutes **biometric data** under an increasing number of jurisdictions including the Illinois Biometric Information Privacy Act (BIPA), the EU AI Act, and India's Digital Personal Data Protection (DPDP) Act [8]. The APAC market, where India's DPDP Act is directly relevant, is Muse's primary target. Treating privacy as a Phase 3 concern is not viable; it is a launch requirement.
-
-### 5.2 Data Lifecycle Map
-
-The following table documents every system and third party that touches a user's audio data, answering the critical question: **is the raw hum deleted after note extraction, or does it persist?**
-
-| Stage | Data | System | Retention | Deletion Trigger |
+| Acquisition Channel | Effective CAC per Paid User (at 5%) | LTV (12-month) | LTV/CAC | Decision |
 |---|---|---|---|---|
-| 1. Recording | Raw audio (WebM) | User's browser (Web Audio API) | Session only | Browser tab close |
-| 2. Upload | Raw audio (WebM) | Muse server (memory buffer) | Processing only (~5s) | Immediately after Basic Pitch extraction |
-| 3. Pitch Detection | Raw audio → MIDI notes | Spotify Basic Pitch (server-side) | Processing only | Input discarded after inference |
-| 4. Note Storage | MIDI note sequence (C4, E4, G4...) | Muse database (TiDB) | Persistent | User account deletion |
-| 5. Music Generation | Text prompt + note description | Google Lyria 3 API | Per Google's data policy | N/A (no raw audio sent) |
-| 6. Music Generation | Text prompt + note description | Meta MusicGen via Replicate | Per Replicate's data policy | N/A (no raw audio sent) |
-| 7. Generated Audio | MP3/WAV files | S3 object storage | Persistent | User deletion request |
-| 8. Video Generation | Text prompt + cover image | Hailuo 2.3 via Replicate | Per Replicate's data policy | N/A (no audio sent) |
-| 9. Generated Video | MP4 files | S3 object storage | Persistent | User deletion request |
+| Organic / viral | ~$0 | $97.92 | ∞ | Always on |
+| Paid ($1.21 blended CPA) | $24.20 | $97.92 | 4.0 | Only if conversion > 5% confirmed |
+| Paid at 3% conversion | $40.33 | $97.92 | 2.4 | Not viable |
+
+Paid acquisition only activates when measured conversion rate exceeds 5% and D7 retention exceeds 20%. Every dollar spent before these thresholds are confirmed is a dollar the business cannot recover.
+
+
+---
+
+## 6. Privacy Architecture — Launch-Ready
+
+### 6.1 Data Lifecycle Map
+
+| Stage | Data | System | Retention | Deletion | DPA Status |
+|---|---|---|---|---|---|
+| 1. Recording | Raw audio (WebM) | Browser (Web Audio API) | Session only | Tab close | N/A (client-side) |
+| 2. Upload | Raw audio (WebM) | Muse server (memory) | ~5s processing | Discarded after pitch extraction | N/A (first-party) |
+| 3. Pitch Detection | Audio → MIDI notes | Basic Pitch (server) | Processing only | Input discarded after inference | N/A (first-party library) |
+| 4. Note Storage | MIDI note sequence | TiDB database | Persistent | Account deletion | N/A (first-party) |
+| 5. Music Gen (Lyria) | Text prompt only | Google AI API | 30 days (Google AI Terms §4.3) | Auto-deleted per Google policy | Signed (Google AI Platform Terms) |
+| 6. Music Gen (MusicGen) | Text prompt only | Replicate API | Deleted within 30 days per Replicate DPA | Auto-deleted per DPA | To be signed before paid acquisition |
+| 7. Video Gen (Hailuo) | Text prompt + image URL | Replicate API | Per Replicate DPA | Auto-deleted per DPA | To be signed before paid acquisition |
+| 8. Generated assets | MP3, MP4, images | S3 storage | Persistent | Account deletion | N/A (first-party storage) |
 
 **Critical design decision:** Raw audio is never persisted to disk or database. It exists only in server memory during the ~5 seconds of Basic Pitch processing, then is discarded. Only the extracted MIDI note sequence (e.g., "C4, E4, G4, C5") is stored — this is not biometric data, as it cannot be used to identify the individual. No raw audio is sent to any third-party AI service; only text prompts and note descriptions are transmitted.
 
-### 5.3 Phase 2: On-Device Processing
+### 6.2 Compliance — Launch Requirements (Not Phase 1.5)
 
-The Phase 2 migration to WebAssembly-based Basic Pitch eliminates even the transient server-side audio processing. Under this architecture, the raw hum is processed entirely in the user's browser, and only the extracted note sequence is transmitted to the server. The raw audio never leaves the device. This is both a privacy improvement and a UX improvement (eliminating the 3-5 second server round-trip).
-
-### 5.4 Consent and Rights Framework
-
-| Requirement | Implementation | Timeline |
+| Requirement | Status | Deadline |
 |---|---|---|
-| **Recording consent** | Explicit opt-in before microphone access; clear explanation of what is recorded and how it is used | Phase 1 (shipped) |
-| **Data processing disclosure** | Privacy policy listing all sub-processors (Google, Replicate, MiniMax, S3 provider) with data types shared | Phase 1.5 |
-| **Right to deletion** | One-click account deletion that removes all user data (notes, tracks, videos, profile) from database and S3 | Phase 1.5 |
-| **Content takedown** | Report button on community gallery and share pages; 48-hour response SLA | Phase 2 |
-| **Remix lineage tracking** | When Creator B remixes Creator A's melody, the dependency is recorded; if Creator A deletes, the remix is flagged for review (not auto-deleted, as it is a derivative work) | Phase 2 |
-| **Public sharing consent** | Explicit opt-in before publishing to community gallery; default is private | Phase 2 |
-| **Sub-processor DPAs** | Data Processing Agreements with Replicate, Google AI, and S3 provider | Phase 1.5 |
+| Replicate DPA signed | In progress | Before paid acquisition |
+| Google AI Platform Terms accepted | Completed | Shipped |
+| Privacy policy with sub-processor list | Draft complete | Before paid acquisition |
+| Cookie/analytics consent banner | Not started | Before funnel instrumentation goes live |
+| Community gallery: explicit public sharing consent | **Not shipped — critical gap** | **Immediate hotfix** |
+| Right-to-deletion endpoint | Not started | Before paid acquisition |
+| Melody correction consent (AI training) | Not started | Before correction data pipeline goes live |
 
-### 5.5 Regulatory Compliance Roadmap
+### 6.3 Community Gallery Consent — Immediate Fix
 
-| Regulation | Jurisdiction | Relevance | Compliance Approach |
+The community gallery is already shipped, but public sharing consent is not implemented. **This is being fixed immediately.** The current behavior publishes all user creations to the gallery by default. The fix adds a toggle on the results page ("Share to Community Gallery," default OFF) and a consent dialog on first share explaining that the track will be visible to all Muse users and can be removed anytime.
+
+### 6.4 Analytics Consent and Purpose Limitation
+
+The funnel instrumentation plan creates a rich behavioral profile. Under DPDP purpose limitation, this data must be collected with explicit consent and used only for the stated purpose.
+
+| Data Category | Purpose | Legal Basis (DPDP) | Consent Mechanism |
 |---|---|---|---|
-| DPDP Act | India | Primary market | Consent-first design; data localization assessment; DPO appointment at scale |
-| PDPA | Singapore | Secondary market | Consent + purpose limitation; PDPC notification if breach |
-| BIPA | Illinois, USA | If US expansion | On-device processing eliminates biometric data collection |
-| EU AI Act | EU | If EU expansion | AI-generated content labeling; transparency obligations |
-| GDPR | EU | If EU expansion | Right to erasure; data portability; DPAs with all processors |
+| Funnel events (anonymous) | Product improvement | Legitimate interest | Cookie consent banner; opt-out available |
+| Funnel events (authenticated) | Personalization + improvement | Consent | Account creation consent; granular opt-out in settings |
+| Melody correction pairs | AI model training | Consent | Explicit opt-in: "Help improve Muse's AI by sharing your melody corrections" |
+| Device/country metadata | Analytics | Legitimate interest | Cookie consent banner |
 
 ---
 
-## 6. Platform Architecture and Abstraction
+## 7. Platform Architecture
 
-### 6.1 The Abstraction Problem
+### 7.1 Provider-Agnostic Abstraction Layer
 
-The current architecture is a tightly coupled monolith where every AI provider integration is bespoke. The Veo-to-Hailuo video migration required rewriting the entire video generation pipeline. When the next model migration happens — and it will, given how fast this space moves — the team will pay the full integration cost again. This section defines the provider-agnostic abstraction layer that prevents this.
-
-### 6.2 Provider-Agnostic Interface Contracts
+The interface contracts define how Muse interacts with AI providers, ensuring that swapping a provider (as happened with the Veo-to-Hailuo migration) requires implementing an interface — not rewriting a pipeline.
 
 ```typescript
-// Music Generation Interface
 interface MusicGenerator {
-  generate(input: {
-    melody: NoteSequence;
-    style: MusicStyle;
-    duration: number;
-    lyrics?: string;
-  }): Promise<{ audioUrl: string; metadata: TrackMetadata }>;
+  generate(input: MusicGenInput): Promise<MusicGenOutput>;
+  estimateLatency(input: MusicGenInput): number;
+  estimateCost(input: MusicGenInput): number;
+  healthCheck(): Promise<ProviderHealth>;
 }
 
-// Video Generation Interface
 interface VideoGenerator {
-  generate(input: {
-    prompt: string;
-    referenceImage?: string;
-    duration: number;
-    aspectRatio: '9:16' | '16:9' | '1:1';
-  }): Promise<{ videoUrl: string; metadata: VideoMetadata }>;
-}
-
-// Pitch Detection Interface
-interface PitchDetector {
-  detect(input: {
-    audioBuffer: ArrayBuffer;
-    sampleRate: number;
-  }): Promise<{ notes: NoteSequence; confidence: number }>;
+  generate(input: VideoGenInput): Promise<VideoGenOutput>;
+  estimateLatency(input: VideoGenInput): number;
+  estimateCost(input: VideoGenInput): number;
+  healthCheck(): Promise<ProviderHealth>;
 }
 ```
 
-Each interface can be satisfied by multiple backends. Adding a new music generation provider (e.g., switching from MusicGen to a self-hosted model) requires implementing the interface — not rewriting the pipeline. This abstraction is scheduled for Phase 1.5 (pre-Phase 2) to ensure the social network features are built on a stable foundation.
+### 7.2 Self-Hosted Inference — Concrete Plan
 
-### 6.3 Durable Job Store
+**MusicGen Self-Hosting (Phase 2, Month 6-8):**
 
-The current in-memory video job store loses all in-flight jobs on server restart or deployment. At the Year 1 target of 50K videos/day, even a brief deployment window would lose hundreds of jobs. The migration path:
+| Specification | Detail |
+|---|---|
+| Model | MusicGen-medium (1.5B params) |
+| Hardware | 1x NVIDIA A10G (24GB VRAM) on AWS g5.xlarge |
+| Cost | $1.006/hr on-demand; ~$0.60/hr reserved |
+| Throughput | ~15 generations/minute (30s tracks) |
+| Latency | ~45s per generation (vs. 60-90s on Replicate) |
+| Monthly cost at 50K gen/mo | ~$1,400 (vs. $1,000 on Replicate) |
+| Monthly cost at 200K gen/mo | ~$2,800 (vs. $4,000 on Replicate) |
+| Break-even volume | ~120K generations/month |
 
-| Phase | Job Store | Durability | Trade-offs |
+Self-hosting is cost-effective only above 120K generations/month. Below that, Replicate is cheaper. The migration trigger is crossing this threshold, expected around Month 8-10.
+
+### 7.3 Rate Limiting and Abuse Prevention — Day One
+
+| Protection | Implementation | Timeline |
+|---|---|---|
+| Per-user rate limit | 3 generations/week for free; enforced server-side | Shipped |
+| Per-IP rate limit | 10 requests/minute for unauthenticated endpoints | Phase 1.5 |
+| Generation queue priority | Paid users prioritized; free users queued behind | Phase 1.5 |
+| Prompt injection defense | LLM prompts use system-level instructions; user input parameterized | Shipped |
+| Storage limits | Max 50 tracks per free account; max 10MB per upload | Phase 1.5 |
+| Bot detection | CAPTCHA on account creation; behavioral analysis | Phase 2 |
+| Cost circuit breaker | If daily API spend exceeds 2x budget, pause free-tier generations | Phase 1.5 |
+
+### 7.4 Durable Job Store
+
+| Phase | Store | Durability | Capacity |
 |---|---|---|---|
-| Phase 1 (current) | In-memory Map | None (lost on restart) | Simple, fast, sufficient for hackathon scale |
-| Phase 1.5 | Database-backed (TiDB) | Full persistence | Adds ~5ms latency per status check; survives restarts |
-| Phase 3 | Dedicated job queue (BullMQ + Redis) | Full persistence + retry + dead letter | Production-grade; supports horizontal scaling |
+| Phase 1 (current) | In-memory Map | Lost on restart | ~100 concurrent jobs |
+| Phase 1.5 | TiDB table (`video_jobs`) | Full persistence | ~10K concurrent jobs |
+| Phase 3 | BullMQ + Redis | Persistence + retry + dead letter | ~100K concurrent jobs |
 
-### 6.4 Self-Hosted Inference Roadmap
+### 7.5 Remix Chain Data Model
 
-The PM crit correctly identified that running MusicGen on Replicate (paying someone else to run an open-source model) is an integrator's approach, not a platform builder's. The self-hosting roadmap:
+The remix chain tracks fork lineage, credit attribution, and handles deletion cascades through a tombstone model:
 
-| Model | Current | Phase 2 | Phase 3 | Annual Savings (at scale) |
-|---|---|---|---|---|
-| MusicGen | Replicate ($0.02/track) | Self-hosted GPU (A100) | Auto-scaling cluster | ~60% cost reduction |
-| Basic Pitch | Server-side Python | WebAssembly (client-side) | Client-side (zero server cost) | 100% cost elimination |
-| Hailuo 2.3 | Replicate ($0.10/video) | Replicate (evaluate alternatives) | Self-hosted or cheapest provider | ~40% cost reduction |
-| Lyria 3 | Google AI API | Google AI API (no alternative) | Google AI API | N/A (proprietary) |
+```sql
+CREATE TABLE melody_chains (
+  id          VARCHAR(36) PRIMARY KEY,
+  melody_id   VARCHAR(36) NOT NULL,
+  forked_from VARCHAR(36),           -- FK to melody_chains.id (nullable for originals)
+  creator_id  VARCHAR(36),           -- FK to users.id (null when tombstoned)
+  notes       JSON NOT NULL,         -- MIDI note sequence
+  created_at  TIMESTAMP DEFAULT NOW(),
+  tombstoned  BOOLEAN DEFAULT FALSE  -- true when creator deletes account
+);
 
-Self-hosting MusicGen is the highest-ROI migration because the model is open-source, well-documented, and inference costs at scale are significantly lower than Replicate's per-call pricing.
+-- Deletion policy: tombstone, not cascade.
+-- Creator deletion → set tombstoned=true, set creator_id=null.
+-- Notes and chain relationships preserved for derivative works.
+```
 
 ---
 
-## 7. Technology Stack
+## 8. Technology Stack
 
 | Layer | Technology | Rationale |
 |---|---|---|
@@ -324,150 +383,77 @@ Self-hosting MusicGen is the highest-ROI migration because the model is open-sou
 | Database | TiDB (MySQL-compatible) | Scalable, cloud-native relational DB |
 | Auth | Manus OAuth | Seamless authentication integration |
 | Music AI (1) | Google Lyria 3 Clip API | State-of-the-art music generation with lyrics |
-| Music AI (2) | Meta MusicGen via Replicate | Faithful melody reproduction (self-host in Phase 2) |
-| Video AI | MiniMax Hailuo 2.3 via Replicate | Reliable cinematic scene video generation |
+| Music AI (2) | Meta MusicGen via Replicate (self-host at scale) | Faithful melody reproduction |
+| Video AI | MiniMax Hailuo 2.3 via Replicate | Cinematic scene video generation |
 | Image AI | Built-in Image Generation | Style-specific cover art |
-| Pitch Detection | Spotify Basic Pitch | ML-based hum-to-notes (migrate to WASM in Phase 2) |
-| LLM | Built-in LLM (Gemini) | Track naming, session naming, scene prompts |
-| Media Processing | FFmpeg (@ffmpeg-installer) | Audio conversion, video looping, audio-video merge |
-| Storage | S3-compatible object storage | Audio, video, and image asset storage |
+| Pitch Detection | Spotify Basic Pitch (migrate to WASM) | ML-based hum-to-notes conversion |
+| LLM | Built-in LLM (Gemini) | Track naming, scene prompts, style analysis |
+| Media Processing | FFmpeg (@ffmpeg-installer) | Audio/video processing pipeline |
+| Storage | S3-compatible object storage | Media asset storage and CDN delivery |
 | Hosting | Manus Platform | Managed deployment with custom domains |
 
 ---
 
-## 8. Business Model and Unit Economics
+## 9. Growth Framework — Instrumentation Before Spending
 
-### 8.1 Revenue Tiers
+### 9.1 The Non-Negotiable Sequence
 
-| Tier | Price | Features | Target Segment |
-|---|---|---|---|
-| Free | $0 | 3 generations/week, watermarked videos, standard quality | Trial users, casual creators |
-| Creator | $8/mo | 30 generations/month, no watermark, HD video, all styles | Regular creators |
-| Pro | $15/mo | Unlimited generations, 4K video, custom styles, priority queue, API access | Power users, content professionals |
+Every dollar spent before instrumentation is live is a dollar you cannot learn from. The growth sequence is gated:
 
-**Key change from v2.0:** Free tier reduced from 3 generations/day to 3 generations/week, based on the unit economics stress test below.
+| Step | Action | Gate to Next Step |
+|---|---|---|
+| 1 | Ship funnel instrumentation (14 events) | All events firing correctly in production |
+| 2 | Ship analytics consent banner | DPDP-compliant consent flow live |
+| 3 | Run 50 in-person user sessions (Mumbai, Jakarta) | Qualitative insights documented; critical UX fixes identified |
+| 4 | Fix critical UX issues from user sessions | Creation completion rate > 50% on mobile |
+| 5 | Ship A/B testing framework | At least one experiment running |
+| 6 | Measure D1/D7 retention for 4 weeks | D7 > 15% confirmed |
+| 7 | Begin organic growth (Product Hunt, creator seeding) | Organic users flowing; funnel data accumulating |
+| 8 | Measure viral coefficient for 4 weeks | k-factor measured with confidence |
+| 9 | Begin paid acquisition ONLY if LTV/CAC > 3 | Paid channels activated |
 
-### 8.2 Unit Economics — Detailed Model
+### 9.2 Retention Targets
 
-| Cost Component | Per-Unit Cost | Free User (3/week) | Creator ($8/mo) | Pro ($15/mo) |
+| Metric | Month 1 | Month 3 | Month 6 | Red Line (pivot trigger) |
 |---|---|---|---|---|
-| Music generation (Lyria 3 + MusicGen) | $0.07/session | $0.84/mo | $2.10/mo (30 sessions) | $4.20/mo (60 sessions) |
-| Video generation (Hailuo 2.3) | $0.10/video | $0.30/mo (25% video rate) | $0.75/mo | $1.50/mo |
-| Image generation (cover art) | $0.01/image | $0.12/mo | $0.30/mo | $0.60/mo |
-| LLM calls (naming, prompts) | $0.005/call | $0.06/mo | $0.15/mo | $0.30/mo |
-| Infrastructure (compute, storage, bandwidth) | ~$0.01/session | $0.12/mo | $0.30/mo | $0.60/mo |
-| **Total cost per user/month** | | **$1.44** | **$3.60** | **$7.20** |
-| **Revenue per user/month** | | **$0** | **$8.00** | **$15.00** |
-| **Gross margin** | | **-$1.44** | **$4.40 (55%)** | **$7.80 (52%)** |
+| D1 Retention | 35% | 40% | 45% | < 25% |
+| D7 Retention | 15% | 20% | 25% | < 12% |
+| D30 Retention | 8% | 12% | 15% | < 6% |
+| Creation Completion (mobile) | 45% | 55% | 65% | < 35% |
+| Share Rate | 8% | 12% | 18% | < 5% |
 
-### 8.3 Breakeven Analysis and Stress Test
+If D7 retention falls below 12% after Month 1, the team stops all growth work and focuses exclusively on retention. If it remains below 12% after Month 3, the team re-evaluates the core product hypothesis.
 
-The free tier is a customer acquisition channel, not a revenue source. Its cost must be funded by paid user margins. The critical question is: **what paid conversion rate makes the free tier sustainable?**
+### 9.3 North Star and Counter-Metric
 
-| Scenario | Paid Conversion Rate | Free Users per Paid User | Free Tier Cost Subsidy | Net Margin per Paid User | Viable? |
-|---|---|---|---|---|---|
-| Optimistic | 8% | 11.5 | $16.56/mo | -$12.16/mo (Creator) | No |
-| Target | 5% | 19 | $27.36/mo | -$22.96/mo (Creator) | No |
-| Realistic | 3% | 32.3 | $46.51/mo | -$42.11/mo (Creator) | No |
+**North Star:** Tracks shared to social platforms per day. This captures the full value chain — creation, completion, and distribution.
 
-**The math is clear: at 3 generations/day, the free tier is unsustainable at any realistic conversion rate.** This is why v3.0 reduces the free tier to 3 generations/week:
+**Counter-metric:** D7 retention rate. Share rate without retention is vanity — you could optimize for flashy first experiences that drive shares but have zero stickiness. The North Star and counter-metric must move together.
 
-| Scenario (3/week free tier) | Paid Conversion Rate | Free Tier Cost/User/Mo | Subsidy per Paid User | Net Margin | Viable? |
-|---|---|---|---|---|---|
-| Optimistic | 8% | $0.41 | $4.72 | -$0.32 (Creator) | Marginal |
-| Target | 5% | $0.41 | $7.79 | -$3.39 (Creator) | No (but close with Pro mix) |
-| Blended (40% Pro) | 5% | $0.41 | $7.79 | +$0.37 | **Yes** |
+**Measurement note:** `share_completed` tracking is unreliable (depends on user returning after external share). The primary proxy is `share_initiated` (user tapped share and selected a platform), supplemented by UTM-tagged referral tracking on incoming traffic.
 
-The blended model works when at least 40% of paid subscribers choose the Pro tier ($15/mo). This is achievable because power users who create frequently will quickly hit the Creator tier's 30-session limit and upgrade. The free tier at 3/week is tight but viable — and can be further optimized by reducing generation costs through self-hosted inference (Section 6.4).
+### 9.4 Pre-Registered Experiments
 
-### 8.4 Revenue Projections
-
-| Metric | Month 6 | Year 1 | Year 2 |
-|---|---|---|---|
-| Total Users | 105K | 310K | 1.2M |
-| Paid Subscribers | 5,250 (5%) | 15,500 (5%) | 72,000 (6%) |
-| Creator Tier (60%) | 3,150 | 9,300 | 43,200 |
-| Pro Tier (40%) | 2,100 | 6,200 | 28,800 |
-| MRR | $56,700 | $167,400 | $777,600 |
-| **ARR** | **$680K** | **$2.0M** | **$9.3M** |
+| Experiment | Hypothesis | Metric | Min. Sample | Weeks to Significance (at 500 DAU) |
+|---|---|---|---|---|
+| Piano auto-skip | Auto-skip increases completion +5% | Completion rate | 2,000/variant | ~2 weeks |
+| Default single style | Reducing choice increases completion | Completion rate | 2,000/variant | ~2 weeks |
+| Video prompt quality | Melody-aware prompts increase share +10% | Share rate | 5,000/variant | ~5 weeks |
+| Loading experience | Mini-game vs. fun facts vs. progress bar | Wait completion | 1,500/variant | ~3 weeks |
 
 ---
 
-## 9. Growth Framework and Experimentation
+## 10. Strategic Roadmap — Revised
 
-### 9.1 Retention Targets
-
-Muse has validated nothing yet. The 8-12 sessions/user/month figure in v2.0 was borrowed from Suno's usage patterns — a company with 2+ years of market presence and massive viral moments. Muse must establish its own retention benchmarks through measurement, not assumption.
-
-| Metric | Week 1 Target | Month 1 Target | Month 3 Target | Measurement Method |
+| Phase | Timeline | Focus | Key Deliverables | Gate to Next Phase |
 |---|---|---|---|---|
-| D1 Retention | 40% | — | — | % of new users who return within 24 hours |
-| D7 Retention | 20% | — | — | % of new users who return within 7 days |
-| D30 Retention | — | 10% | 15% | % of new users active at 30 days |
-| Sessions/User/Month | — | 3-4 | 5-6 | Median sessions per active user |
-| Creation Completion Rate | 60% | 65% | 70% | % of users who start recording and reach results |
-| Share Rate | 10% | 15% | 20% | % of completed creations shared externally |
+| **1** (Current) | Q2 2026 | Creation Engine | Hum/play input, dual-engine, 10 styles, video, share, gallery | Product live and functional |
+| **1.5** | Q2-Q3 2026 | **Instrumentation + Hardening** | Funnel analytics, consent banner, gallery consent fix, rate limiting, 50 user sessions, A/B framework, durable job store, abstraction layer | D7 > 15%; funnel data flowing |
+| **2** | Q3-Q4 2026 | **Community + Mobile** | User profiles, remix chains, discovery feed, PWA, on-device pitch detection, Quick Create, melody correction pipeline | 50K corrections; community DAU > 1K |
+| **3** | Q1 2027 | **Network Effects + Scale** | Remix leaderboards, creator tips, trending feed, self-hosted MusicGen, public API v1 | k-factor > 0.5; self-hosted live |
+| **4** | Q2-Q3 2027 | **Platform + H2 Vision** | Personal style models, album generation, DSP distribution, enterprise API | ARR > $1M |
 
-These targets are deliberately conservative. If D7 retention falls below 15%, it signals a fundamental product-market fit problem that no amount of growth spending can fix.
-
-### 9.2 Funnel Instrumentation
-
-Every transition in the Muse funnel is a discrete, instrumentable step. This is a genuine structural advantage for optimization.
-
-| Funnel Step | Event Name | Key Properties | Optimization Lever |
-|---|---|---|---|
-| Landing page visit | `page_view` | Source, device, country | Messaging, design |
-| Create button tap | `create_start` | Authenticated, returning user | CTA placement, copy |
-| Recording started | `recording_start` | Input method (hum/piano) | Onboarding flow |
-| Recording completed | `recording_complete` | Duration, note count | Recording UX |
-| Pitch detection done | `pitch_detected` | Confidence score, note count | Model accuracy |
-| Piano verification | `melody_confirmed` | Notes edited (yes/no), time spent | Auto-skip threshold |
-| Style selected | `style_selected` | Styles chosen, count | Default selection |
-| Generation started | `generation_start` | Style count, engine | Queue management |
-| Generation completed | `generation_complete` | Duration, success/failure, engine | Retry logic, model choice |
-| Track played | `track_play` | Track variant, play duration | Audio quality |
-| Video generated | `video_generated` | Duration, success/failure | Video pipeline |
-| Share initiated | `share_initiated` | Platform, format (link/video) | Share UX |
-| Share completed | `share_completed` | Platform, referral code | Attribution |
-
-### 9.3 Experimentation Infrastructure
-
-Muse will implement a lightweight A/B testing framework from Phase 1.5, before any growth spending begins.
-
-**Architecture:** Feature flags stored in the database, assigned per-user on first visit, with consistent bucketing (same user always sees the same variant). Events are tagged with the active experiment variants for analysis.
-
-**Pre-registered experiments for Phase 1.5:**
-
-| Experiment | Hypothesis | Variants | Primary Metric | Decision Rule |
-|---|---|---|---|---|
-| Piano skip | Auto-skipping piano verification for high-confidence detections increases completion rate | A: Show piano (control) / B: Auto-skip if confidence > 0.85 | Creation completion rate | Ship B if completion rate +5% with no increase in "melody wrong" reports |
-| Free tier limit | 3/week vs 5/week free generations | A: 3/week / B: 5/week | Paid conversion rate | Ship whichever maximizes LTV (conversion rate x ARPU) |
-| Video prompt style | Generic style prompts vs melody-aware prompts | A: Genre-based / B: Melody-tempo-energy based | Share rate | Ship B if share rate +10% |
-| Loading experience | Fun facts vs progress-only vs mini-game | A: Fun facts / B: Progress bar only / C: Simple rhythm game | Completion rate (% who wait for results) | Ship variant with highest completion |
-
----
-
-## 10. Success Metrics
-
-### 10.1 North Star Metric
-
-**Tracks shared to social platforms per day.** This single metric captures the full value chain: a user created music (engagement), generated a video (feature adoption), and shared it publicly (distribution + growth). Every shared track is both a satisfied user and a potential new user acquisition channel.
-
-### 10.2 Key Performance Indicators
-
-| Metric | Month 1 | Month 6 | Year 1 | How Measured |
-|---|---|---|---|---|
-| Registered Users | 6K | 105K | 310K | Database count |
-| DAU | 900 | 15,750 | 46,500 | Unique daily active sessions |
-| Creation Completion Rate | 55% | 65% | 70% | Funnel analytics |
-| Share Rate | 10% | 15% | 20% | share_completed / generation_complete |
-| D7 Retention | 15% | 20% | 25% | Cohort analysis |
-| Paid Conversion | 2% | 4% | 5% | Subscriber / registered |
-| Viral Coefficient (k) | 0.10 | 0.18 | 0.30 | Measured from referral attribution |
-| Avg. Generation Latency | 75s | 60s | 45s | Server-side timing |
-| NPS | 30 | 40 | 50 | In-app survey (monthly) |
-
-These are not wishes — each has a defined measurement method and will be tracked from day one. If D7 retention is below 15% at Month 1, the team pivots to retention-focused work before any growth investment.
+Phase 1.5 is the explicit hardening phase. No community features or growth spending until instrumentation, consent, and abuse prevention are shipped.
 
 ---
 
@@ -475,61 +461,53 @@ These are not wishes — each has a defined measurement method and will be track
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| **Free tier costs exceed revenue** | High | Critical | Reduced to 3/week; stress-tested breakeven model; self-hosted inference roadmap |
-| **Low retention after novelty** | Medium | Critical | D1/D7/D30 instrumentation from day one; experimentation framework; UX improvement roadmap |
-| **Competitor replicates features** | High | High | Community network effects as primary moat; accelerated Phase 2 social features |
-| **Privacy/regulatory action** | Medium | Critical | Raw audio never persisted; on-device processing in Phase 2; DPAs with all sub-processors |
-| **API provider model deprecation** | Medium | High | Provider-agnostic abstraction layer; self-hosted inference for open-source models |
-| **In-memory job store data loss** | Medium | Medium | Database-backed job store in Phase 1.5; dead letter queue in Phase 3 |
-| **Music API instability** | Medium | Medium | Auto-retry with backoff; dual-engine fallback; graceful degradation |
-| **Video generation quality (looped clips)** | Medium | Medium | Melody-aware prompts in Phase 2; user-uploaded reference images; A/B test share rates |
-| **Copyright concerns with AI music** | Medium | High | Clear AI-generated labeling; no training on copyrighted melodies; legal review |
+| Suno ships hum input | High | Critical | Accelerate melody correction dataset; community in Phase 2; mobile-first APAC |
+| Free tier costs unsustainable | High | Critical | No free video; self-hosted inference; 3/week cap; cost circuit breaker |
+| D7 retention < 12% | Medium | Critical | 50 user sessions pre-launch; Quick Create mode; mobile optimization |
+| Mobile APAC performance | Medium | High | Device testing; progressive loading; audio-only fallback |
+| Privacy/regulatory (DPDP) | Medium | Critical | DPAs before acquisition; consent banner; gallery consent fix |
+| API provider deprecation | Medium | High | Abstraction layer; self-hosted MusicGen |
+| Bot abuse on free tier | Medium | Medium | Rate limiting; CAPTCHA; cost circuit breaker |
 
 ---
 
-## 12. Social Platform Compatibility
-
-Muse is designed as a **social-native creation tool**, optimized for distribution across major social and messaging platforms:
-
-| Platform | Integration Point | User Value |
-|---|---|---|
-| **Instagram Reels** | One-tap export of 9:16 AI music videos | Instant social sharing with optimized format |
-| **TikTok** | 9:16 portrait video with music | Native format for viral distribution |
-| **YouTube Shorts** | Cross-post music videos | Extended reach on Google's platform |
-| **WhatsApp** | Share creation links + audio previews | Viral distribution through messaging |
-| **Threads** | Share music creation stories | Community building around music creation |
-
-Instagram Reels is the primary distribution channel. Muse generates videos in the exact 9:16 portrait format at 1080x1920 resolution that Instagram Reels requires. Each video includes AI-generated cinematic scene visuals that match the music's mood and style. The audio reuse feature on Instagram enables a viral remix cycle: Creator A hums a melody → Muse generates a track → Creator B discovers the track on Reels → Creator B remixes it with their own hum → A new track is born. This creates a **flywheel effect** where each creation spawns new creations.
-
----
-
-## 13. Current Implementation Status
-
-As of March 30, 2026, the following features are fully implemented and deployed:
+## 12. Current Implementation Status
 
 | Feature | Status | Notes |
 |---|---|---|
-| Hum recording with pitch detection | Shipped | 10s max, real-time note visualization |
-| Basic Pitch ML hum-to-notes | Shipped | Spotify's model, smart melody extraction |
-| Interactive piano verification | Shipped | 2-octave keyboard (C4-B5), playback |
-| Lyria 3 Clip generation | Shipped | 30s tracks with auto-retry |
-| MusicGen generation | Shipped | 30s instrumental tracks via Replicate |
+| Hum recording + pitch detection | Shipped | 10s max, real-time visualization |
+| Interactive piano verification | Shipped | 2-octave keyboard (C4-B5) |
+| Lyria 3 + MusicGen dual engine | Shipped | 30s tracks, auto-retry |
 | 10 music styles | Shipped | Lo-fi through EDM |
-| AI cover art generation | Shipped | Style-specific, per-track |
-| AI track/session naming | Shipped | LLM-generated creative names |
-| Hailuo 2.3 video generation | Shipped | 1 segment looped, ~2 min generation |
-| Background job + polling | Shipped | Real-time progress, no HTTP timeout |
-| FFmpeg audio-video merge | Shipped | With fallback for deployment |
-| Community gallery | Shipped | Style filters, session/track views |
-| Share page | Shipped | Public, no-auth video playback |
-| MP3 download | Shipped | Server-side format conversion |
-| MP4 video download | Shipped | Fetch-then-blob for cross-origin |
-| Landing page | Shipped | "Turn your hum into music. Go viral." |
-| Funnel analytics | Planned (Phase 1.5) | Event tracking for all funnel steps |
-| A/B testing framework | Planned (Phase 1.5) | Feature flags + experiment bucketing |
-| On-device pitch detection | Planned (Phase 2) | WebAssembly Basic Pitch |
-| User profiles + followers | Planned (Phase 2) | Social graph foundation |
-| Melody remix chains | Planned (Phase 2) | Fork + credit system |
+| AI cover art + track naming | Shipped | Per-track, style-specific |
+| Hailuo 2.3 video generation | Shipped | 1 segment looped, ~2 min |
+| Background job + polling | Shipped | Real-time progress |
+| Community gallery | Shipped | **Consent fix needed (immediate)** |
+| Share page | Shipped | Public, no-auth playback |
+| MP3/MP4 downloads | Shipped | Cross-origin compatible |
+| Funnel analytics | **Not shipped** | Phase 1.5 priority |
+| A/B testing framework | **Not shipped** | Phase 1.5 priority |
+| Analytics consent banner | **Not shipped** | Phase 1.5 priority |
+| Gallery sharing consent | **Not shipped** | **Immediate hotfix** |
+| Rate limiting | **Not shipped** | Phase 1.5 priority |
+| Right-to-deletion | **Not shipped** | Phase 1.5 priority |
+| Durable job store | **Not shipped** | Phase 1.5 priority |
+
+---
+
+## 13. Success Metrics
+
+| Metric | Month 1 | Month 3 | Month 6 | Year 1 | Measurement |
+|---|---|---|---|---|---|
+| Registered Users | 3.5K | 20K | 55K | 150K | Database |
+| DAU | 530 | 3,000 | 8,250 | 22,500 | Analytics |
+| D7 Retention | 15% | 20% | 25% | 28% | Cohort analysis |
+| Creation Completion (mobile) | 45% | 55% | 65% | 70% | Funnel analytics |
+| Share Rate | 8% | 12% | 18% | 22% | share_initiated events |
+| Viral Coefficient (k) | 0.10 | 0.18 | 0.30 | 0.50 | Referral attribution |
+| Paid Conversion | 3% | 5% | 7% | 8% | Subscriber / registered |
+| Melody Corrections | 2K | 15K | 50K | 150K | Database |
+| MRR | $1.3K | $12K | $46K | $144K | Billing |
 
 ---
 
@@ -545,7 +523,7 @@ As of March 30, 2026, the following features are fully implemented and deployed:
 
 [5] Mordor Intelligence. "Short-Form Video Platform Market." 2024. https://www.mordorintelligence.com
 
-[6] DataReportal. "Digital 2025: Global Overview Report." 2025. https://datareportal.com
+[6] GSMA. "The Mobile Economy Asia Pacific 2025." 2025. https://www.gsma.com/mobileeconomy/asiapacific/
 
 [7] Influencer Marketing Hub. "Creator Economy Statistics." 2025. https://influencermarketinghub.com
 
